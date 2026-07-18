@@ -308,15 +308,20 @@ async function main() {
     run(`git checkout -b ${BRANCH}`);
   }
 
-  // 6. Configure remote — clean URL, token delivered via extraheader
+  // 6. Configure remote — clean URL, token delivered via extraheader.
   //    The token is NEVER embedded in the remote URL and is NOT logged.
   try { run("git remote remove origin"); } catch { /* didn't exist */ }
   run(`git remote add origin https://github.com/${owner}/${repo}.git`);
 
-  // Set auth via git config extraheader (command is run silently — not logged)
+  // Unset any stale extraheader first (prevents "Duplicate header" errors if a
+  // previous run left the config set without cleaning up), then set it fresh.
+  // GitHub git servers use HTTP Basic auth: base64("x-access-token:<PAT>").
+  // "Authorization: bearer TOKEN" is rejected by GitHub's git endpoint.
+  try { run("git config --local --unset http.https://github.com/.extraheader", { capture: true }); } catch { /* wasn't set */ }
+  const basicAuth = Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString("base64");
   runSecret(
     `Configuring git auth header (token: ***${GITHUB_TOKEN.slice(-4)})`,
-    `git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"`
+    `git config --local http.https://github.com/.extraheader "Authorization: Basic ${basicAuth}"`
   );
 
   // 7. Stage and commit
@@ -339,7 +344,13 @@ async function main() {
   }
 
   // 8. Push with retry + verification
-  await pushWithRetry(BRANCH);
+  try {
+    await pushWithRetry(BRANCH);
+  } finally {
+    // Always clean up auth header from local config after push (success or failure)
+    // so the token does not linger in .git/config indefinitely.
+    try { run("git config --local --unset http.https://github.com/.extraheader", { capture: true }); } catch { /* already unset */ }
+  }
 
   log(`\nSuccess! Code pushed to https://github.com/${owner}/${repo}/tree/${BRANCH}`);
 }

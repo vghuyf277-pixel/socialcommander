@@ -2,42 +2,65 @@
 # SocialCommander: auto-push to GitHub after every checkpoint (git commit).
 # Runs in background — never blocks the commit.
 #
-# Security: GITHUB_TOKEN is delivered via git's http.extraheader, never
-# embedded in a remote URL or printed to any log.
+# Security: GITHUB_TOKEN is delivered via git config http.extraheader using
+# HTTP Basic auth (base64 of "x-access-token:TOKEN") — never embedded in a
+# remote URL or printed to any log.  The header is unset from local git config
+# immediately after each push/fetch attempt, so the token does not linger.
 #
 # Reliability: retries up to 3 times with fetch+rebase reconciliation;
 # only logs success when the push actually returns exit code 0.
+#
+# Note: GitHub's git server requires Basic auth for HTTPS.
+#       "Authorization: bearer TOKEN" is rejected — must be Basic.
 
 TOKEN="${GITHUB_TOKEN:-}"
 REPO="${GITHUB_REPO:-}"
 BRANCH="${GITHUB_BRANCH:-main}"
 LOG="/tmp/github-autopush.log"
 
-# Exit silently when required vars are absent — no error spam
+# Exit silently when required vars are absent
 [ -z "$TOKEN" ] || [ -z "$REPO" ] && exit 0
 
 (
   TS="[$(date -u +%Y-%m-%dT%H:%M:%SZ)]"
-
-  # Ensure remote URL is clean — token is NOT embedded here
+  EXTRA_KEY="http.https://github.com/.extraheader"
   CLEAN_URL="https://github.com/${REPO}.git"
+
+  # GitHub git endpoint requires HTTP Basic auth:
+  #   base64("x-access-token:<PAT>")  — "bearer TOKEN" is rejected.
+  ENCODED=$(echo -n "x-access-token:${TOKEN}" | base64 -w 0 2>/dev/null \
+            || echo -n "x-access-token:${TOKEN}" | base64)
+
+  # Ensure remote URL is clean — token NOT embedded
   if git remote get-url origin >/dev/null 2>&1; then
     git remote set-url origin "$CLEAN_URL" >/dev/null 2>&1
   else
     git remote add origin "$CLEAN_URL" >/dev/null 2>&1
   fi
 
-  # Helper: run git push with the auth header injected inline via -c.
-  # The -c flag is transient (not stored in any config file) and the whole
-  # command's output is redirected to /dev/null, so the token is never logged.
-  git_push() {
-    git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TOKEN}" \
-      push origin "${BRANCH}" >/dev/null 2>&1
+  # set_auth / clear_auth: always unset before setting to prevent duplicate headers
+  set_auth() {
+    git config --local --unset "$EXTRA_KEY" >/dev/null 2>&1 || true
+    git config --local "$EXTRA_KEY" "Authorization: Basic ${ENCODED}" >/dev/null 2>&1
+  }
+  clear_auth() {
+    git config --local --unset "$EXTRA_KEY" >/dev/null 2>&1 || true
   }
 
-  git_fetch() {
-    git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TOKEN}" \
-      fetch origin "${BRANCH}" >/dev/null 2>&1
+  try_push() {
+    set_auth
+    git push origin "${BRANCH}" >/dev/null 2>&1
+    local rc=$?
+    clear_auth
+    return $rc
+  }
+
+  try_fetch() {
+    set_auth
+    git fetch origin "${BRANCH}" >/dev/null 2>&1
+    local rc=$?
+    clear_auth
+    return $rc
   }
 
   MAX_RETRIES=3
@@ -47,16 +70,15 @@ LOG="/tmp/github-autopush.log"
   while [ "$attempt" -lt "$MAX_RETRIES" ]; do
     attempt=$((attempt + 1))
 
-    if git_push; then
+    if try_push; then
       echo "${TS} ✓ Pushed to github.com/${REPO} (${BRANCH}) [attempt ${attempt}]" >> "$LOG"
       pushed=true
       break
     fi
 
     if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-      # Reconcile diverged history before retrying
-      git_fetch
-      # Try rebase; if it conflicts, abort (leave state clean for next attempt)
+      # Reconcile diverged history before retry
+      try_fetch
       git rebase "origin/${BRANCH}" >/dev/null 2>&1 || \
         git rebase --abort >/dev/null 2>&1
       sleep $((attempt * 2))
@@ -64,7 +86,7 @@ LOG="/tmp/github-autopush.log"
   done
 
   if [ "$pushed" = false ]; then
-    echo "${TS} ✗ Push failed after ${MAX_RETRIES} attempts — check GITHUB_TOKEN/GITHUB_REPO" >> "$LOG"
+    echo "${TS} ✗ Push failed after ${MAX_RETRIES} attempts — check GITHUB_TOKEN / GITHUB_REPO" >> "$LOG"
   fi
 ) &
 
