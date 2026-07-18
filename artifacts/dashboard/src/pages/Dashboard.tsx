@@ -15,10 +15,10 @@ const getSparklineData = (seed: number) => Array.from({length: 14}).map((_, i) =
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const { data: accountsOverview, isLoading: isLoadingAccounts } = useGetAccountsOverview();
-  const { data: analytics, isLoading: isLoadingAnalytics } = useGetAnalyticsOverview({});
-  const { data: postsPage, isLoading: isLoadingPosts } = useListPosts({ limit: 10 });
-  const { data: accounts, isLoading: isLoadingAccountsList } = useListAccounts();
+  const { data: accountsOverview, isLoading: isLoadingAccounts } = useGetAccountsOverview({ query: { refetchInterval: 30_000 } });
+  const { data: analytics, isLoading: isLoadingAnalytics } = useGetAnalyticsOverview({}, { query: { refetchInterval: 30_000 } });
+  const { data: postsPage, isLoading: isLoadingPosts } = useListPosts({ limit: 10 }, { query: { refetchInterval: 30_000 } });
+  const { data: accounts, isLoading: isLoadingAccountsList } = useListAccounts(undefined, { query: { refetchInterval: 60_000 } });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

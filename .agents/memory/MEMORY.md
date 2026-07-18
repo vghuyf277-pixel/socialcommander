@@ -1,0 +1,2 @@
+- [Orval Zod codegen — no schemas option](orval-zod-no-schemas.md) — removing `schemas` from orval zod config prevents TypeScript type/Zod schema naming conflicts
+- [Git hook auto-push](git-hook-autopush.md) — post-commit hook at .git/hooks/post-commit; template in scripts/git-hooks/post-commit; reinstalled by post-merge.sh

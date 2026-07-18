@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import { 
   LayoutDashboard, Users, PenSquare, Calendar as CalendarIcon, 
-  BarChart3, ListTree, Activity, Settings, Plus, Moon, Sun, Bell, Search
+  BarChart3, ListTree, Activity, Settings, Plus, Moon, Sun, Bell, Search, SlidersHorizontal
 } from "lucide-react";
 import { useListAccounts, useGetAccountsOverview, useListPosts } from "@workspace/api-client-react";
 import { SiX, SiReddit } from "react-icons/si";
@@ -75,6 +75,31 @@ export function Shell({ children }: { children: ReactNode }) {
               </SidebarGroupContent>
             </SidebarGroup>
             
+            <SidebarGroup className="mt-2">
+              <SidebarGroupLabel className="text-xs font-mono uppercase tracking-wider text-muted-foreground">System</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {[
+                    { href: "/queue", label: "Queue Health", icon: ListTree },
+                    { href: "/audit", label: "Audit Log", icon: Activity },
+                    { href: "/settings", label: "Settings", icon: SlidersHorizontal },
+                  ].map(item => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={location === item.href}>
+                        <Link href={item.href} className="flex items-center gap-3 text-muted-foreground">
+                          <item.icon className="h-4 w-4" />
+                          <span className="flex-1">{item.label}</span>
+                          {item.href === "/queue" && failedCount > 0 && (
+                            <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
             <SidebarGroup className="mt-4">
               <div className="flex items-center justify-between px-2 py-1">
                 <SidebarGroupLabel className="p-0 text-xs font-mono uppercase tracking-wider text-muted-foreground">Network</SidebarGroupLabel>
@@ -107,29 +132,6 @@ export function Shell({ children }: { children: ReactNode }) {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup className="mt-auto pt-4 border-t border-border">
-              <SidebarGroupLabel className="text-xs font-mono uppercase tracking-wider text-muted-foreground">System</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {[
-                    { href: "/queue", label: "Queue Health", icon: ListTree },
-                    { href: "/audit", label: "Audit Log", icon: Activity },
-                  ].map(item => (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={location === item.href}>
-                        <Link href={item.href} className="flex items-center gap-3 text-muted-foreground">
-                          <item.icon className="h-4 w-4" />
-                          <span className="flex-1">{item.label}</span>
-                          {item.href === "/queue" && failedCount > 0 && (
-                            <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
           </SidebarContent>
         </Sidebar>
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
@@ -200,6 +202,9 @@ export function Shell({ children }: { children: ReactNode }) {
                 </CommandItem>
                 <CommandItem onSelect={() => { setLocation('/audit'); setCmdOpen(false); }}>
                   <Activity className="mr-2 h-4 w-4" /> Audit
+                </CommandItem>
+                <CommandItem onSelect={() => { setLocation('/settings'); setCmdOpen(false); }}>
+                  <SlidersHorizontal className="mr-2 h-4 w-4" /> Settings
                 </CommandItem>
               </CommandGroup>
               <CommandGroup heading="Accounts">

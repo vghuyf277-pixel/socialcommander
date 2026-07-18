@@ -14,6 +14,7 @@ import Calendar from '@/pages/Calendar';
 import Analytics from '@/pages/Analytics';
 import Queue from '@/pages/Queue';
 import Audit from '@/pages/Audit';
+import Settings from '@/pages/Settings';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/analytics" component={Analytics} />
         <Route path="/queue" component={Queue} />
         <Route path="/audit" component={Audit} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

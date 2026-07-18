@@ -6,6 +6,7 @@ import analyticsRouter from "./analytics";
 import aiRouter from "./ai";
 import queueRouter from "./queue";
 import auditRouter from "./audit";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(analyticsRouter);
 router.use(aiRouter);
 router.use(queueRouter);
 router.use(auditRouter);
+router.use(settingsRouter);
 
 export default router;

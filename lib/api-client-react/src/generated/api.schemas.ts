@@ -386,6 +386,38 @@ export interface QueueStats {
   successRate: number;
 }
 
+export type SettingsStatusDatabase = {
+  connected: boolean;
+};
+
+export type SettingsStatusGroq = {
+  configured: boolean;
+  /** @nullable */
+  keyHint?: string | null;
+  /** @nullable */
+  model?: string | null;
+};
+
+export type SettingsStatusGithub = {
+  tokenSet: boolean;
+  /** @nullable */
+  repo?: string | null;
+  branch?: string;
+  autoPushEnabled: boolean;
+};
+
+export type SettingsStatusScheduler = {
+  running: boolean;
+  intervalSeconds: number;
+};
+
+export interface SettingsStatus {
+  database: SettingsStatusDatabase;
+  groq: SettingsStatusGroq;
+  github: SettingsStatusGithub;
+  scheduler: SettingsStatusScheduler;
+}
+
 export interface AuditLog {
   id: number;
   /** @nullable */
@@ -520,6 +552,14 @@ export const ListQueueJobsStatus = {
   failed: 'failed',
   all: 'all',
 } as const;
+
+export type BulkDeletePostsBody = {
+  ids: number[];
+};
+
+export type BulkDeletePosts200 = {
+  deleted: number;
+};
 
 export type ListAuditLogsParams = {
 /**

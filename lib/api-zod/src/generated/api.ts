@@ -881,6 +881,101 @@ export const GetQueueStatsResponse = zod.object({
 
 
 /**
+ * @summary System integration health and configuration status
+ */
+export const GetSettingsStatusResponse = zod.object({
+  "database": zod.object({
+  "connected": zod.boolean()
+}),
+  "groq": zod.object({
+  "configured": zod.boolean(),
+  "keyHint": zod.string().nullish(),
+  "model": zod.string().nullish()
+}),
+  "github": zod.object({
+  "tokenSet": zod.boolean(),
+  "repo": zod.string().nullish(),
+  "branch": zod.string().optional(),
+  "autoPushEnabled": zod.boolean()
+}),
+  "scheduler": zod.object({
+  "running": zod.boolean(),
+  "intervalSeconds": zod.number()
+})
+})
+
+
+/**
+ * @summary Clone a post as a new draft
+ */
+export const DuplicatePostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const duplicatePostResponseImpressionsDefault = 0;
+export const duplicatePostResponseLikesDefault = 0;
+export const duplicatePostResponseCommentsDefault = 0;
+export const duplicatePostResponseRepostsDefault = 0;
+export const duplicatePostResponseAiGeneratedDefault = false;
+export const duplicatePostResponseRetryCountDefault = 0;
+export const duplicatePostResponseAccountPostsCountDefault = 0;
+export const duplicatePostResponseAccountFollowersCountDefault = 0;
+export const duplicatePostResponseAccountEngagementRateDefault = 0;
+
+export const DuplicatePostResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "platform": zod.enum(['twitter', 'reddit']),
+  "content": zod.string(),
+  "mediaUrls": zod.array(zod.string()).optional(),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'failed']),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "externalId": zod.string().nullish(),
+  "impressions": zod.number().default(duplicatePostResponseImpressionsDefault),
+  "likes": zod.number().default(duplicatePostResponseLikesDefault),
+  "comments": zod.number().default(duplicatePostResponseCommentsDefault),
+  "reposts": zod.number().default(duplicatePostResponseRepostsDefault),
+  "aiGenerated": zod.boolean().default(duplicatePostResponseAiGeneratedDefault),
+  "subreddit": zod.string().nullish(),
+  "postTitle": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number().default(duplicatePostResponseRetryCountDefault),
+  "account": zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['twitter', 'reddit']),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "color": zod.string().describe('Hex color code for UI identification'),
+  "status": zod.enum(['active', 'suspended', 'paused']),
+  "avatarUrl": zod.string().nullish(),
+  "proxyConfig": zod.string().nullish().describe('Proxy URL for this account'),
+  "voiceProfile": zod.string().nullish().describe('AI voice\/tone profile description'),
+  "postsCount": zod.number().default(duplicatePostResponseAccountPostsCountDefault),
+  "followersCount": zod.number().default(duplicatePostResponseAccountFollowersCountDefault),
+  "engagementRate": zod.number().default(duplicatePostResponseAccountEngagementRateDefault),
+  "lastPostAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+}).optional(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Delete multiple posts by ID
+ */
+export const BulkDeletePostsBody = zod.object({
+  "ids": zod.array(zod.number())
+})
+
+export const BulkDeletePostsResponse = zod.object({
+  "deleted": zod.number()
+})
+
+
+/**
  * @summary List audit log entries
  */
 export const listAuditLogsQueryLimitDefault = 50;

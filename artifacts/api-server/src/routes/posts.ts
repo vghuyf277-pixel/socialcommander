@@ -374,6 +374,30 @@ router.post("/posts/:id/schedule", async (req, res): Promise<void> => {
   res.json({ ...post, account: account ?? null });
 });
 
+// POST /posts/bulk-delete — remove multiple posts at once
+router.post("/posts/bulk-delete", async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: unknown };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids must be a non-empty array of integers" });
+    return;
+  }
+  const validIds = ids.filter((id): id is number => Number.isInteger(id));
+  if (validIds.length === 0) {
+    res.status(400).json({ error: "No valid integer ids provided" });
+    return;
+  }
+
+  // Delete in bulk
+  let deleted = 0;
+  for (const id of validIds) {
+    const result = await db.delete(postsTable).where(eq(postsTable.id, id)).returning();
+    deleted += result.length;
+  }
+
+  req.log.info({ deleted, ids: validIds }, "Bulk post delete");
+  res.json({ deleted });
+});
+
 // POST /posts/:id/duplicate — clone as draft for a fresh edit
 router.post("/:id/duplicate", async (req, res): Promise<void> => {
   const id = Number(req.params.id);

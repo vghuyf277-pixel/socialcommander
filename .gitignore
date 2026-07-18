@@ -6,6 +6,9 @@ build/
 *.env
 !.env.example
 
+# Replit attached/uploaded assets — may contain pasted secrets
+attached_assets/
+
 # Secrets — never commit these
 *.pem
 *.key

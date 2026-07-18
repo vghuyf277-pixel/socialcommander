@@ -1,0 +1,22 @@
+#!/bin/bash
+# SocialCommander: auto-push to GitHub after every checkpoint (git commit)
+# Runs in background — never blocks the commit.
+TOKEN="${GITHUB_TOKEN:-}"
+REPO="${GITHUB_REPO:-}"
+BRANCH="${GITHUB_BRANCH:-main}"
+LOG="/tmp/github-autopush.log"
+[ -z "$TOKEN" ] || [ -z "$REPO" ] && exit 0
+(
+  REMOTE_URL="https://${TOKEN}@github.com/${REPO}.git"
+  if git remote get-url origin >/dev/null 2>&1; then
+    git remote set-url origin "$REMOTE_URL" >/dev/null 2>&1
+  else
+    git remote add origin "$REMOTE_URL" >/dev/null 2>&1
+  fi
+  git push origin "$BRANCH" >/dev/null 2>&1 \
+    && echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✓ Pushed to github.com/${REPO} (${BRANCH})" >> "$LOG" \
+    || { git push --set-upstream origin "$BRANCH" >/dev/null 2>&1 \
+    && echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✓ First push set-upstream github.com/${REPO}" >> "$LOG" \
+    || echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✗ Push failed — check GITHUB_TOKEN/GITHUB_REPO secrets" >> "$LOG"; }
+) &
+exit 0

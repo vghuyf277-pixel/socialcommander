@@ -22,6 +22,8 @@ tags:
     description: Background job queue management
   - name: audit
     description: Audit log
+  - name: settings
+    description: System configuration and integration status
 
 paths:
   /healthz:
@@ -560,6 +562,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/QueueStats"
 
+  # ── SETTINGS ──────────────────────────────────────────────────────────────
+  /settings/status:
+    get:
+      operationId: getSettingsStatus
+      tags: [settings]
+      summary: System integration health and configuration status
+      responses:
+        "200":
+          description: Settings status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsStatus"
+
+  # ── POSTS EXTRA ────────────────────────────────────────────────────────────
+  /posts/{id}/duplicate:
+    post:
+      operationId: duplicatePost
+      tags: [posts]
+      summary: Clone a post as a new draft
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Duplicated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/bulk-delete:
+    post:
+      operationId: bulkDeletePosts
+      tags: [posts]
+      summary: Delete multiple posts by ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "200":
+          description: Number of posts deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: integer
+
   # ── AUDIT ─────────────────────────────────────────────────────────────────
   /audit:
     get:
@@ -1066,6 +1131,48 @@ components:
           type: integer
         successRate:
           type: number
+
+    # ── SETTINGS SCHEMAS ──────────────────────────────────────────────────
+    SettingsStatus:
+      type: object
+      required: [database, groq, github, scheduler]
+      properties:
+        database:
+          type: object
+          required: [connected]
+          properties:
+            connected:
+              type: boolean
+        groq:
+          type: object
+          required: [configured]
+          properties:
+            configured:
+              type: boolean
+            keyHint:
+              type: ["string", "null"]
+            model:
+              type: ["string", "null"]
+        github:
+          type: object
+          required: [tokenSet, autoPushEnabled]
+          properties:
+            tokenSet:
+              type: boolean
+            repo:
+              type: ["string", "null"]
+            branch:
+              type: string
+            autoPushEnabled:
+              type: boolean
+        scheduler:
+          type: object
+          required: [running, intervalSeconds]
+          properties:
+            running:
+              type: boolean
+            intervalSeconds:
+              type: integer
 
     # ── AUDIT SCHEMAS ─────────────────────────────────────────────────────
     AuditLog:

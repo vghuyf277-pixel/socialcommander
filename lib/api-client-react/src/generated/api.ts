@@ -28,6 +28,8 @@ import type {
   AccountsOverview,
   AnalyticsOverview,
   AuditLog,
+  BulkDeletePosts200,
+  BulkDeletePostsBody,
   CalendarEntry,
   GenerateContentInput,
   GeneratedContent,
@@ -52,6 +54,7 @@ import type {
   QueueJob,
   QueueStats,
   ScheduleInput,
+  SettingsStatus,
   TimeseriesPoint
 } from './api.schemas';
 
@@ -2012,6 +2015,225 @@ export function useGetQueueStats<TData = Awaited<ReturnType<typeof getQueueStats
 
 
 
+
+export const getGetSettingsStatusUrl = () => {
+
+
+
+
+  return `/api/settings/status`
+}
+
+/**
+ * @summary System integration health and configuration status
+ */
+export const getSettingsStatus = async ( options?: RequestInit): Promise<SettingsStatus> => {
+
+  return customFetch<SettingsStatus>(getGetSettingsStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSettingsStatusQueryKey = () => {
+    return [
+    `/api/settings/status`
+    ] as const;
+    }
+
+
+export const getGetSettingsStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettingsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSettingsStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSettingsStatus>>> = ({ signal }) => getSettingsStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSettingsStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSettingsStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSettingsStatus>>>
+export type GetSettingsStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary System integration health and configuration status
+ */
+
+export function useGetSettingsStatus<TData = Awaited<ReturnType<typeof getSettingsStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettingsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSettingsStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDuplicatePostUrl = (id: number,) => {
+
+
+
+
+  return `/api/posts/${id}/duplicate`
+}
+
+/**
+ * @summary Clone a post as a new draft
+ */
+export const duplicatePost = async (id: number, options?: RequestInit): Promise<Post> => {
+
+  return customFetch<Post>(getDuplicatePostUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDuplicatePostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof duplicatePost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof duplicatePost>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['duplicatePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof duplicatePost>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  duplicatePost(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DuplicatePostMutationResult = NonNullable<Awaited<ReturnType<typeof duplicatePost>>>
+
+    export type DuplicatePostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clone a post as a new draft
+ */
+export const useDuplicatePost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof duplicatePost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof duplicatePost>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDuplicatePostMutationOptions(options));
+    }
+
+export const getBulkDeletePostsUrl = () => {
+
+
+
+
+  return `/api/posts/bulk-delete`
+}
+
+/**
+ * @summary Delete multiple posts by ID
+ */
+export const bulkDeletePosts = async (bulkDeletePostsBody: BulkDeletePostsBody, options?: RequestInit): Promise<BulkDeletePosts200> => {
+
+  return customFetch<BulkDeletePosts200>(getBulkDeletePostsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkDeletePostsBody)
+  }
+);}
+
+
+
+
+
+export const getBulkDeletePostsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeletePosts>>, TError,{data: BodyType<BulkDeletePostsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkDeletePosts>>, TError,{data: BodyType<BulkDeletePostsBody>}, TContext> => {
+
+const mutationKey = ['bulkDeletePosts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeletePosts>>, {data: BodyType<BulkDeletePostsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkDeletePosts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkDeletePostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeletePosts>>>
+    export type BulkDeletePostsMutationBody = BodyType<BulkDeletePostsBody>
+    export type BulkDeletePostsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete multiple posts by ID
+ */
+export const useBulkDeletePosts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeletePosts>>, TError,{data: BodyType<BulkDeletePostsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkDeletePosts>>,
+        TError,
+        {data: BodyType<BulkDeletePostsBody>},
+        TContext
+      > => {
+      return useMutation(getBulkDeletePostsMutationOptions(options));
+    }
 
 export const getListAuditLogsUrl = (params?: ListAuditLogsParams,) => {
   const normalizedParams = new URLSearchParams();
