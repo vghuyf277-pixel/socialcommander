@@ -716,6 +716,13 @@ components:
         updatedAt:
           type: string
           format: date-time
+        credentials:
+          type: ["string", "null"]
+          description: JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)
+        oauthAccessToken:
+          type: ["string", "null"]
+        oauthRefreshToken:
+          type: ["string", "null"]
 
     AccountInput:
       type: object
@@ -740,6 +747,9 @@ components:
           type: ["string", "null"]
         oauthRefreshToken:
           type: ["string", "null"]
+        credentials:
+          type: ["string", "null"]
+          description: JSON blob of platform-specific API credentials
 
     AccountUpdate:
       type: object
@@ -761,6 +771,9 @@ components:
           type: ["string", "null"]
         oauthRefreshToken:
           type: ["string", "null"]
+        credentials:
+          type: ["string", "null"]
+          description: JSON blob of platform-specific API credentials
 
     AccountStats:
       type: object

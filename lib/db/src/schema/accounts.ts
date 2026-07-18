@@ -29,6 +29,7 @@ export const accountsTable = pgTable("accounts", {
   voiceProfile: text("voice_profile"),
   oauthAccessToken: text("oauth_access_token"),
   oauthRefreshToken: text("oauth_refresh_token"),
+  credentials: text("credentials"), // JSON: platform-specific API keys, stored in DB (persists across all Replit actions)
   postsCount: integer("posts_count").notNull().default(0),
   followersCount: integer("followers_count").notNull().default(0),
   engagementRate: real("engagement_rate").notNull().default(0),

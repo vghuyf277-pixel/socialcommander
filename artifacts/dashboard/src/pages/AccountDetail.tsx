@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SiX, SiReddit } from "react-icons/si";
-import { ArrowLeft, Settings, MessageSquare, Heart, Share2, TrendingUp, AlertTriangle, TrendingDown, Copy, Clock, Users } from "lucide-react";
+import { ArrowLeft, Settings, MessageSquare, Heart, Share2, TrendingUp, AlertTriangle, TrendingDown, Copy, Clock, Users, KeyRound, CheckCircle2, XCircle } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/lib/utils";
@@ -37,12 +38,36 @@ export default function AccountDetail() {
   const [color, setColor] = useState("#3b82f6");
   const initializedForId = useRef<number | null>(null);
 
+  // Credential fields (Twitter)
+  const [twApiKey, setTwApiKey] = useState("");
+  const [twApiSecret, setTwApiSecret] = useState("");
+  const [twAccessToken, setTwAccessToken] = useState("");
+  const [twAccessSecret, setTwAccessSecret] = useState("");
+  // Credential fields (Reddit)
+  const [rdClientId, setRdClientId] = useState("");
+  const [rdClientSecret, setRdClientSecret] = useState("");
+  const [rdUsername, setRdUsername] = useState("");
+  const [rdPassword, setRdPassword] = useState("");
+
   useEffect(() => {
     if (account && initializedForId.current !== accountId) {
       initializedForId.current = accountId;
       setVoiceProfile(account.voiceProfile || "");
       setProxyConfig(account.proxyConfig || "");
       setColor(account.color || "#3b82f6");
+      // Parse stored credentials
+      if (account.credentials) {
+        try {
+          const c = JSON.parse(account.credentials) as Record<string, string>;
+          if (account.platform === "twitter") {
+            setTwApiKey(c.apiKey || ""); setTwApiSecret(c.apiSecret || "");
+            setTwAccessToken(c.accessToken || ""); setTwAccessSecret(c.accessSecret || "");
+          } else if (account.platform === "reddit") {
+            setRdClientId(c.clientId || ""); setRdClientSecret(c.clientSecret || "");
+            setRdUsername(c.username || ""); setRdPassword(c.password || "");
+          }
+        } catch { /* ignore malformed */ }
+      }
     }
   }, [account, accountId]);
 
@@ -57,6 +82,28 @@ export default function AccountDetail() {
         onError: () => {
           toast.error("Failed to save settings");
         }
+      }
+    );
+  };
+
+  const handleSaveCredentials = () => {
+    if (!account) return;
+    let credentials: string | null = null;
+    if (account.platform === "twitter") {
+      if (twApiKey || twApiSecret || twAccessToken || twAccessSecret)
+        credentials = JSON.stringify({ apiKey: twApiKey, apiSecret: twApiSecret, accessToken: twAccessToken, accessSecret: twAccessSecret });
+    } else if (account.platform === "reddit") {
+      if (rdClientId || rdClientSecret || rdUsername || rdPassword)
+        credentials = JSON.stringify({ clientId: rdClientId, clientSecret: rdClientSecret, username: rdUsername, password: rdPassword });
+    }
+    updateAccount.mutate(
+      { id: accountId, data: { credentials } },
+      {
+        onSuccess: () => {
+          toast.success("Credentials saved to database — real posting enabled ✓");
+          queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        },
+        onError: () => toast.error("Failed to save credentials"),
       }
     );
   };
@@ -153,10 +200,13 @@ export default function AccountDetail() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
+        <TabsList className="grid w-full grid-cols-4 max-w-[520px]">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="analytics">Deep Analytics</TabsTrigger>
-          <TabsTrigger value="settings">Configuration</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="settings">Config</TabsTrigger>
+          <TabsTrigger value="credentials" className="gap-1">
+            <KeyRound className="h-3 w-3" /> Credentials
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -414,6 +464,90 @@ export default function AccountDetail() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </TabsContent>
+
+        {/* ── Credentials Tab ── */}
+        <TabsContent value="credentials" className="mt-6">
+          <div className="max-w-2xl space-y-6">
+            {/* Status banner */}
+            {account && (() => {
+              const hasCreds = !!account.credentials;
+              return (
+                <div className={`flex items-center gap-3 rounded-lg border p-4 ${hasCreds ? "border-green-500/30 bg-green-500/5" : "border-yellow-500/30 bg-yellow-500/5"}`}>
+                  {hasCreds
+                    ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                    : <XCircle className="h-5 w-5 text-yellow-500 shrink-0" />}
+                  <div>
+                    <p className="text-sm font-semibold">{hasCreds ? "API credentials configured — real posting active" : "No credentials — posts are recorded locally only"}</p>
+                    <p className="text-xs text-muted-foreground">Credentials are stored in the database and persist across all Replit actions and restarts.</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  {account?.platform === "twitter" ? "X / Twitter API Credentials" : "Reddit API Credentials"}
+                </CardTitle>
+                <CardDescription>
+                  {account?.platform === "twitter"
+                    ? <>Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="underline text-primary">developer.twitter.com</a> → your app → Keys and Tokens</>
+                    : <>Create a "script" app at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener noreferrer" className="underline text-primary">reddit.com/prefs/apps</a> then use your account credentials</>}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {account?.platform === "twitter" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">API Key (Consumer Key)</Label>
+                      <Input placeholder="xxxxxxxxxxxxxxxx" value={twApiKey} onChange={(e) => setTwApiKey(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">API Secret (Consumer Secret)</Label>
+                      <Input placeholder="xxxxxxxxxxxxxxxx" type="password" value={twApiSecret} onChange={(e) => setTwApiSecret(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Access Token</Label>
+                      <Input placeholder="xxxxxxx-xxxxxxxxxxxxxxxx" value={twAccessToken} onChange={(e) => setTwAccessToken(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Access Token Secret</Label>
+                      <Input placeholder="xxxxxxxxxxxxxxxx" type="password" value={twAccessSecret} onChange={(e) => setTwAccessSecret(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                  </div>
+                )}
+                {account?.platform === "reddit" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Client ID</Label>
+                      <Input placeholder="xxxxxxxxxxxxxx" value={rdClientId} onChange={(e) => setRdClientId(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Client Secret</Label>
+                      <Input placeholder="xxxxxxxxxxxxxxxxxxxxxx" type="password" value={rdClientSecret} onChange={(e) => setRdClientSecret(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Reddit Username</Label>
+                      <Input placeholder="your_username" value={rdUsername} onChange={(e) => setRdUsername(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-mono">Reddit Password</Label>
+                      <Input placeholder="••••••••" type="password" value={rdPassword} onChange={(e) => setRdPassword(e.target.value)} className="font-mono text-sm" />
+                    </div>
+                  </div>
+                )}
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Saved to database — not in .env or git</p>
+                  <Button onClick={handleSaveCredentials} disabled={updateAccount.isPending}>
+                    {updateAccount.isPending ? "Saving…" : "Save Credentials"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

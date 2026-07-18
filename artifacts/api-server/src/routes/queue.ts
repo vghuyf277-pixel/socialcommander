@@ -2,7 +2,14 @@ import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, queueJobsTable, postsTable, accountsTable, auditLogsTable } from "@workspace/db";
 import { ListQueueJobsQueryParams } from "@workspace/api-zod";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
+import {
+  publishToTwitter,
+  publishToReddit,
+  hasValidCredentials,
+  type TwitterCredentials,
+  type RedditCredentials,
+} from "../lib/platform-publisher.js";
 
 const router: IRouter = Router();
 
@@ -152,6 +159,51 @@ async function processDueJobs(): Promise<void> {
         if (job.type === "post_publish") {
           const payload = job.payload as { postId?: number };
           if (payload.postId) {
+            // Fetch post + account before updating so we have credentials
+            const [existingPost] = await db
+              .select()
+              .from(postsTable)
+              .where(eq(postsTable.id, payload.postId));
+
+            let platformPostId: string | null = null;
+            let publishDetails = "Published via scheduler";
+
+            if (existingPost) {
+              const [account] = await db
+                .select()
+                .from(accountsTable)
+                .where(eq(accountsTable.id, existingPost.accountId));
+
+              // Attempt real platform publish if credentials are stored
+              if (account && hasValidCredentials(account.platform as "twitter" | "reddit", account.credentials)) {
+                try {
+                  const creds = JSON.parse(account.credentials!);
+                  if (account.platform === "twitter") {
+                    const result = await publishToTwitter(creds as TwitterCredentials, {
+                      content: existingPost.content,
+                      mediaUrls: existingPost.mediaUrls ?? [],
+                    });
+                    platformPostId = result.tweetId;
+                    publishDetails = `Published to X/Twitter — tweet ID: ${result.tweetId}`;
+                  } else if (account.platform === "reddit") {
+                    const result = await publishToReddit(creds as RedditCredentials, {
+                      content: existingPost.content,
+                      postTitle: existingPost.postTitle,
+                      subreddit: existingPost.subreddit,
+                    });
+                    platformPostId = result.postId;
+                    publishDetails = `Published to Reddit r/${existingPost.subreddit ?? "test"} — post ID: ${result.postId}`;
+                  }
+                } catch (apiErr) {
+                  // Log but don't fail the job — record as published locally
+                  logger.warn({ err: apiErr, postId: existingPost.id }, "Real API publish failed — marking published locally");
+                  publishDetails = `Published locally (platform API error: ${apiErr instanceof Error ? apiErr.message : String(apiErr)})`;
+                }
+              } else if (account) {
+                publishDetails = "Published locally — no platform credentials configured";
+              }
+            }
+
             const [post] = await db
               .update(postsTable)
               .set({ status: "published", publishedAt: new Date() })
@@ -168,7 +220,7 @@ async function processDueJobs(): Promise<void> {
                 accountId: post.accountId,
                 postId: post.id,
                 action: "post_published_scheduled",
-                details: "Published via scheduler",
+                details: publishDetails,
               });
             }
           }

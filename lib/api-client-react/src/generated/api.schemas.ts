@@ -53,6 +53,15 @@ export interface Account {
   lastPostAt?: string | null;
   createdAt: string;
   updatedAt?: string;
+  /**
+     * JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)
+     * @nullable
+     */
+  credentials?: string | null;
+  /** @nullable */
+  oauthAccessToken?: string | null;
+  /** @nullable */
+  oauthRefreshToken?: string | null;
 }
 
 export type AccountInputPlatform = typeof AccountInputPlatform[keyof typeof AccountInputPlatform];
@@ -78,6 +87,11 @@ export interface AccountInput {
   oauthAccessToken?: string | null;
   /** @nullable */
   oauthRefreshToken?: string | null;
+  /**
+     * JSON blob of platform-specific API credentials
+     * @nullable
+     */
+  credentials?: string | null;
 }
 
 /**
@@ -109,6 +123,11 @@ export interface AccountUpdate {
   oauthAccessToken?: string | null;
   /** @nullable */
   oauthRefreshToken?: string | null;
+  /**
+     * JSON blob of platform-specific API credentials
+     * @nullable
+     */
+  credentials?: string | null;
 }
 
 export interface AccountStats {

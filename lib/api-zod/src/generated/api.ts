@@ -43,7 +43,10 @@ export const ListAccountsResponseItem = zod.object({
   "engagementRate": zod.number().default(listAccountsResponseEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 })
 export const ListAccountsResponse = zod.array(ListAccountsResponseItem)
 
@@ -60,7 +63,8 @@ export const CreateAccountBody = zod.object({
   "proxyConfig": zod.string().nullish(),
   "voiceProfile": zod.string().nullish(),
   "oauthAccessToken": zod.string().nullish(),
-  "oauthRefreshToken": zod.string().nullish()
+  "oauthRefreshToken": zod.string().nullish(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials')
 })
 
 export const createAccountResponsePostsCountDefault = 0;
@@ -82,7 +86,10 @@ export const CreateAccountResponse = zod.object({
   "engagementRate": zod.number().default(createAccountResponseEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 })
 
 
@@ -112,7 +119,10 @@ export const GetAccountResponse = zod.object({
   "engagementRate": zod.number().default(getAccountResponseEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 })
 
 
@@ -131,7 +141,8 @@ export const UpdateAccountBody = zod.object({
   "proxyConfig": zod.string().nullish(),
   "voiceProfile": zod.string().nullish(),
   "oauthAccessToken": zod.string().nullish(),
-  "oauthRefreshToken": zod.string().nullish()
+  "oauthRefreshToken": zod.string().nullish(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials')
 })
 
 export const updateAccountResponsePostsCountDefault = 0;
@@ -153,7 +164,10 @@ export const UpdateAccountResponse = zod.object({
   "engagementRate": zod.number().default(updateAccountResponseEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 })
 
 
@@ -258,7 +272,10 @@ export const ListPostsResponse = zod.object({
   "engagementRate": zod.number().default(listPostsResponsePostsItemAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -330,7 +347,10 @@ export const CreatePostResponse = zod.object({
   "engagementRate": zod.number().default(createPostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -388,7 +408,10 @@ export const GetPostResponse = zod.object({
   "engagementRate": zod.number().default(getPostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -455,7 +478,10 @@ export const UpdatePostResponse = zod.object({
   "engagementRate": zod.number().default(updatePostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -523,7 +549,10 @@ export const PublishPostResponse = zod.object({
   "engagementRate": zod.number().default(publishPostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -588,7 +617,10 @@ export const SchedulePostResponse = zod.object({
   "engagementRate": zod.number().default(schedulePostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -650,7 +682,10 @@ export const GetCalendarResponseItem = zod.object({
   "engagementRate": zod.number().default(getCalendarResponsePostsItemAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -712,7 +747,10 @@ export const GetRecentPostsResponseItem = zod.object({
   "engagementRate": zod.number().default(getRecentPostsResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -956,7 +994,10 @@ export const DuplicatePostResponse = zod.object({
   "engagementRate": zod.number().default(duplicatePostResponseAccountEngagementRateDefault),
   "lastPostAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().optional()
+  "updatedAt": zod.coerce.date().optional(),
+  "credentials": zod.string().nullish().describe('JSON blob of platform-specific API credentials stored in DB (not gitignored, persists across all Replit actions)'),
+  "oauthAccessToken": zod.string().nullish(),
+  "oauthRefreshToken": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()

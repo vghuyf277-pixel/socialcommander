@@ -42,11 +42,11 @@ router.post("/accounts", async (req, res): Promise<void> => {
     return;
   }
 
-  const { platform, username, displayName, color, avatarUrl, proxyConfig, voiceProfile, oauthAccessToken, oauthRefreshToken } = body.data;
+  const { platform, username, displayName, color, avatarUrl, proxyConfig, voiceProfile, oauthAccessToken, oauthRefreshToken, credentials } = body.data;
 
   const [account] = await db
     .insert(accountsTable)
-    .values({ platform, username, displayName, color, avatarUrl, proxyConfig, voiceProfile, oauthAccessToken, oauthRefreshToken })
+    .values({ platform, username, displayName, color, avatarUrl, proxyConfig, voiceProfile, oauthAccessToken, oauthRefreshToken, credentials })
     .returning();
 
   await db.insert(auditLogsTable).values({
@@ -133,6 +133,7 @@ router.patch("/accounts/:id", async (req, res): Promise<void> => {
   if (d.voiceProfile !== undefined) updates.voiceProfile = d.voiceProfile ?? null;
   if (d.oauthAccessToken !== undefined) updates.oauthAccessToken = d.oauthAccessToken ?? null;
   if (d.oauthRefreshToken !== undefined) updates.oauthRefreshToken = d.oauthRefreshToken ?? null;
+  if (d.credentials !== undefined) updates.credentials = d.credentials ?? null;
 
   const [account] = await db
     .update(accountsTable)
