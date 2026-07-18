@@ -1,2 +1,3 @@
 - [Orval Zod codegen — no schemas option](orval-zod-no-schemas.md) — removing `schemas` from orval zod config prevents TypeScript type/Zod schema naming conflicts
-- [Git hook auto-push](git-hook-autopush.md) — post-commit hook at .git/hooks/post-commit; template in scripts/git-hooks/post-commit; reinstalled by post-merge.sh
+- [Git auto-push setup](git-autopush.md) — hook at .git/hooks/post-commit; needs GITHUB_TOKEN secret + GITHUB_REPO/GITHUB_BRANCH env vars; manual push: set-url with token then push
+- [Per-account platform credentials](platform-credentials.md) — credentials JSON in accounts.credentials DB column (not .env); Twitter OAuth1a + Reddit password flow; degrades gracefully if missing
