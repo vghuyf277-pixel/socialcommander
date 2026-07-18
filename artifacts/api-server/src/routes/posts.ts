@@ -65,7 +65,7 @@ router.get("/posts", async (req, res): Promise<void> => {
     : sql``;
 
   // Count + page in one pass
-  const [countRow] = await db.execute<{ count: string }>(
+  const { rows: [countRow] } = await db.execute<{ count: string }>(
     sql`SELECT COUNT(*)::text as count FROM posts ${where}`
   );
   const total = Number(countRow?.count ?? 0);

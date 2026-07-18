@@ -96,7 +96,7 @@ router.delete("/queue/jobs/:id", async (req, res): Promise<void> => {
 
 // GET /queue/stats — single aggregated query
 router.get("/queue/stats", async (req, res): Promise<void> => {
-  const [stats] = await db.execute<{
+  const { rows: [stats] } = await db.execute<{
     pending: string;
     processing: string;
     completed: string;

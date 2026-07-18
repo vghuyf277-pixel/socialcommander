@@ -23,7 +23,7 @@ router.get("/audit", async (req, res): Promise<void> => {
     ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
     : sql``;
 
-  const [countRow] = await db.execute<{ count: string }>(
+  const { rows: [countRow] } = await db.execute<{ count: string }>(
     sql`SELECT COUNT(*)::text as count FROM audit_logs ${where}`
   );
   const total = Number(countRow?.count ?? 0);

@@ -62,7 +62,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
 
 // GET /accounts/overview — single efficient query (must come before /:id)
 router.get("/accounts/overview", async (req, res): Promise<void> => {
-  const [stats] = await db.execute<{
+  const { rows: [stats] } = await db.execute<{
     total_accounts: string;
     active_accounts: string;
     posts_today: string;
@@ -222,7 +222,7 @@ router.get("/accounts/:id/stats", async (req, res): Promise<void> => {
 
   const id = params.data.id;
 
-  const [stats] = await db.execute<{
+  const { rows: [stats] } = await db.execute<{
     total_posts: string;
     scheduled_posts: string;
     failed_posts: string;
