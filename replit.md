@@ -1,45 +1,68 @@
-# [Project name]
+# SocialCommander
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+AI-powered social media management dashboard for managing up to 10 X (Twitter) + 10 Reddit accounts with automated scheduling, AI content generation, and analytics.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
+- `pnpm --filter @workspace/api-server run dev` — run the API server
+- `pnpm --filter @workspace/dashboard run dev` — run the frontend dashboard
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/scripts run push-to-github` — push code to GitHub (set GITHUB_TOKEN and GITHUB_REPO in Secrets)
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite + Tailwind + shadcn/ui + Recharts + Wouter
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
+- DB: PostgreSQL + Drizzle ORM (tables: accounts, posts, queue_jobs, audit_logs)
 - Validation: Zod (`zod/v4`), `drizzle-zod`
+- AI: Groq (llama-3.1-8b-instant) / OpenAI-compatible
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for all API contracts)
+- `lib/db/src/schema/` — Drizzle schema (accounts.ts, posts.ts, queue.ts, audit.ts)
+- `artifacts/api-server/src/routes/` — Express route handlers (accounts, posts, analytics, ai, queue, audit)
+- `artifacts/dashboard/src/` — React frontend with all pages
+- `scripts/src/push-to-github.ts` — Idempotent GitHub push script
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- OpenAPI-first: spec gates codegen which gates frontend — never hand-write types that codegen produces
+- Built-in scheduler: 30-second polling loop in queue.ts processes due jobs (BullMQ-ready, swap in when Redis is available)
+- Per-account color coding: `color` hex stored in DB, used throughout UI for account identification
+- AI graceful degradation: AI routes return mock content when GROQ_API_KEY is not set
+- Audit log on all mutations: every create/update/delete writes to audit_logs table
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard**: Command center with live stats, recent post feed, and account health grid
+- **Accounts**: Color-coded account management with per-account proxy config and AI voice profiles
+- **Compose**: Post composer with AI generation, tone control, optimal time suggestions, and scheduled posting with jitter
+- **Calendar**: Month/week view of all scheduled and published posts
+- **Analytics**: Aggregate metrics, time series charts, 7×24 engagement heatmap
+- **Queue**: Background job monitoring with status indicators
+- **Audit Log**: Immutable action history
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Dark mode first
+- No emojis in the UI
+- Dense, information-rich layouts preferred
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After any change to `lib/api-spec/openapi.yaml`, run codegen before touching frontend or backend validation
+- The scheduler processes jobs every 30 seconds — jobs with `scheduled_for <= NOW()` get picked up automatically
+- OAuth tokens stored in DB are plain text — encrypt before production use (see RISKS.md)
+- See RISKS.md before running in production — automated multi-account posting violates platform ToS
 
 ## Pointers
 
+- `README.md` — Full setup guide, API reference, deployment options
+- `ARCHITECTURE.md` — Deep architecture notes, extension guide, Docker Compose
+- `RISKS.md` — TOS warnings, security risks, legal notes
+- `TODO.md` — Roadmap and extension ideas
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details

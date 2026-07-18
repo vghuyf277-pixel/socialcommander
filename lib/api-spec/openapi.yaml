@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SocialCommander API - Social media management for X and Reddit
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: accounts
+    description: Social media account management
+  - name: posts
+    description: Post creation, scheduling, and management
+  - name: analytics
+    description: Analytics and metrics
+  - name: ai
+    description: AI content generation and optimization
+  - name: queue
+    description: Background job queue management
+  - name: audit
+    description: Audit log
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,565 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── ACCOUNTS ──────────────────────────────────────────────────────────────
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List all social media accounts
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+            enum: [twitter, reddit, all]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, paused, all]
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Add a new social media account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          description: Validation error
+
+  /accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get a specific account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Update an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Remove an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /accounts/{id}/stats:
+    get:
+      operationId: getAccountStats
+      tags: [accounts]
+      summary: Get stats summary for an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountStats"
+
+  /accounts/overview:
+    get:
+      operationId: getAccountsOverview
+      tags: [accounts]
+      summary: Aggregate overview across all accounts
+      responses:
+        "200":
+          description: Accounts overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountsOverview"
+
+  # ── POSTS ──────────────────────────────────────────────────────────────────
+  /posts:
+    get:
+      operationId: listPosts
+      tags: [posts]
+      summary: List posts with optional filters
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, scheduled, published, failed, all]
+        - name: platform
+          in: query
+          schema:
+            type: string
+            enum: [twitter, reddit, all]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a new post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "404":
+          description: Not found
+    patch:
+      operationId: updatePost
+      tags: [posts]
+      summary: Update a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostUpdate"
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /posts/{id}/publish:
+    post:
+      operationId: publishPost
+      tags: [posts]
+      summary: Immediately publish a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}/schedule:
+    post:
+      operationId: schedulePost
+      tags: [posts]
+      summary: Schedule a post for later
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleInput"
+      responses:
+        "200":
+          description: Scheduled post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/calendar:
+    get:
+      operationId: getCalendar
+      tags: [posts]
+      summary: Get calendar view of scheduled posts
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Calendar data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEntry"
+
+  /posts/recent:
+    get:
+      operationId: getRecentPosts
+      tags: [posts]
+      summary: Get recently published posts with engagement data
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+
+  # ── ANALYTICS ─────────────────────────────────────────────────────────────
+  /analytics/overview:
+    get:
+      operationId: getAnalyticsOverview
+      tags: [analytics]
+      summary: Aggregate analytics across all accounts
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Analytics overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsOverview"
+
+  /analytics/account-metrics:
+    get:
+      operationId: getAccountAnalytics
+      tags: [analytics]
+      summary: Per-account analytics
+      parameters:
+        - name: accountId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Account analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountAnalytics"
+
+  /analytics/heatmap:
+    get:
+      operationId: getEngagementHeatmap
+      tags: [analytics]
+      summary: Get engagement heatmap by day/hour
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        "200":
+          description: Heatmap data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HeatmapCell"
+
+  /analytics/timeseries:
+    get:
+      operationId: getAnalyticsTimeseries
+      tags: [analytics]
+      summary: Time series metrics for charting
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [impressions, likes, comments, reposts, followers]
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Time series data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeseriesPoint"
+
+  # ── AI ────────────────────────────────────────────────────────────────────
+  /ai/generate:
+    post:
+      operationId: generateContent
+      tags: [ai]
+      summary: Generate AI content for a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateContentInput"
+      responses:
+        "200":
+          description: Generated content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedContent"
+
+  /ai/optimize-time:
+    post:
+      operationId: getOptimalPostingTime
+      tags: [ai]
+      summary: Get AI-recommended optimal posting times
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OptimizeTimeInput"
+      responses:
+        "200":
+          description: Optimal posting times
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimalTimes"
+
+  # ── QUEUE ─────────────────────────────────────────────────────────────────
+  /queue/jobs:
+    get:
+      operationId: listQueueJobs
+      tags: [queue]
+      summary: List background jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed, all]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueueJob"
+
+  /queue/stats:
+    get:
+      operationId: getQueueStats
+      tags: [queue]
+      summary: Queue health and stats
+      responses:
+        "200":
+          description: Queue stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueStats"
+
+  # ── AUDIT ─────────────────────────────────────────────────────────────────
+  /audit:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: List audit log entries
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: action
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +605,485 @@ components:
       required:
         - status
 
+    # ── ACCOUNT SCHEMAS ──────────────────────────────────────────────────
+    Account:
+      type: object
+      required: [id, platform, username, displayName, color, status, createdAt]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+          enum: [twitter, reddit]
+        username:
+          type: string
+        displayName:
+          type: string
+        color:
+          type: string
+          description: Hex color code for UI identification
+        status:
+          type: string
+          enum: [active, suspended, paused]
+        avatarUrl:
+          type: ["string", "null"]
+        proxyConfig:
+          type: ["string", "null"]
+          description: Proxy URL for this account
+        voiceProfile:
+          type: ["string", "null"]
+          description: AI voice/tone profile description
+        postsCount:
+          type: integer
+          default: 0
+        followersCount:
+          type: integer
+          default: 0
+        engagementRate:
+          type: number
+          default: 0
+        lastPostAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AccountInput:
+      type: object
+      required: [platform, username, displayName, color]
+      properties:
+        platform:
+          type: string
+          enum: [twitter, reddit]
+        username:
+          type: string
+        displayName:
+          type: string
+        color:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        proxyConfig:
+          type: ["string", "null"]
+        voiceProfile:
+          type: ["string", "null"]
+        oauthAccessToken:
+          type: ["string", "null"]
+        oauthRefreshToken:
+          type: ["string", "null"]
+
+    AccountUpdate:
+      type: object
+      properties:
+        displayName:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+          enum: [active, suspended, paused]
+        avatarUrl:
+          type: ["string", "null"]
+        proxyConfig:
+          type: ["string", "null"]
+        voiceProfile:
+          type: ["string", "null"]
+        oauthAccessToken:
+          type: ["string", "null"]
+        oauthRefreshToken:
+          type: ["string", "null"]
+
+    AccountStats:
+      type: object
+      required: [accountId, totalPosts, scheduledPosts, failedPosts, avgEngagement, topPostId]
+      properties:
+        accountId:
+          type: integer
+        totalPosts:
+          type: integer
+        scheduledPosts:
+          type: integer
+        failedPosts:
+          type: integer
+        avgEngagement:
+          type: number
+        topPostId:
+          type: ["integer", "null"]
+
+    AccountsOverview:
+      type: object
+      required: [totalAccounts, activeAccounts, totalPostsToday, totalScheduled, platformBreakdown]
+      properties:
+        totalAccounts:
+          type: integer
+        activeAccounts:
+          type: integer
+        totalPostsToday:
+          type: integer
+        totalScheduled:
+          type: integer
+        platformBreakdown:
+          type: object
+          properties:
+            twitter:
+              type: integer
+            reddit:
+              type: integer
+
+    # ── POST SCHEMAS ──────────────────────────────────────────────────────
+    Post:
+      type: object
+      required: [id, accountId, platform, content, status, createdAt]
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        platform:
+          type: string
+          enum: [twitter, reddit]
+        content:
+          type: string
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, scheduled, published, failed]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        publishedAt:
+          type: ["string", "null"]
+          format: date-time
+        externalId:
+          type: ["string", "null"]
+        impressions:
+          type: integer
+          default: 0
+        likes:
+          type: integer
+          default: 0
+        comments:
+          type: integer
+          default: 0
+        reposts:
+          type: integer
+          default: 0
+        aiGenerated:
+          type: boolean
+          default: false
+        subreddit:
+          type: ["string", "null"]
+        postTitle:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        retryCount:
+          type: integer
+          default: 0
+        account:
+          $ref: "#/components/schemas/Account"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PostInput:
+      type: object
+      required: [accountId, content]
+      properties:
+        accountId:
+          type: integer
+        content:
+          type: string
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, scheduled]
+          default: draft
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        subreddit:
+          type: ["string", "null"]
+        postTitle:
+          type: ["string", "null"]
+        aiGenerated:
+          type: boolean
+          default: false
+
+    PostUpdate:
+      type: object
+      properties:
+        content:
+          type: ["string", "null"]
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: ["string", "null"]
+          enum: [draft, scheduled, published, failed]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        subreddit:
+          type: ["string", "null"]
+        postTitle:
+          type: ["string", "null"]
+
+    PostsPage:
+      type: object
+      required: [posts, total, limit, offset]
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    ScheduleInput:
+      type: object
+      required: [scheduledAt]
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+        jitterMinutes:
+          type: integer
+          default: 0
+          description: Add random jitter for human-like behavior
+
+    CalendarEntry:
+      type: object
+      required: [date, posts]
+      properties:
+        date:
+          type: string
+          format: date
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+
+    # ── ANALYTICS SCHEMAS ─────────────────────────────────────────────────
+    AnalyticsOverview:
+      type: object
+      required: [totalImpressions, totalLikes, totalComments, totalReposts, totalPosts, avgEngagementRate, topAccount, growthRate]
+      properties:
+        totalImpressions:
+          type: integer
+        totalLikes:
+          type: integer
+        totalComments:
+          type: integer
+        totalReposts:
+          type: integer
+        totalPosts:
+          type: integer
+        avgEngagementRate:
+          type: number
+        topAccount:
+          type: ["string", "null"]
+        growthRate:
+          type: number
+
+    AccountAnalytics:
+      type: object
+      required: [accountId, impressions, likes, comments, reposts, postsPublished, avgEngagement, bestDayOfWeek, bestHour]
+      properties:
+        accountId:
+          type: integer
+        impressions:
+          type: integer
+        likes:
+          type: integer
+        comments:
+          type: integer
+        reposts:
+          type: integer
+        postsPublished:
+          type: integer
+        avgEngagement:
+          type: number
+        bestDayOfWeek:
+          type: string
+        bestHour:
+          type: integer
+
+    HeatmapCell:
+      type: object
+      required: [dayOfWeek, hour, value]
+      properties:
+        dayOfWeek:
+          type: integer
+          description: 0=Sunday, 6=Saturday
+        hour:
+          type: integer
+          description: 0-23
+        value:
+          type: number
+
+    TimeseriesPoint:
+      type: object
+      required: [date, value]
+      properties:
+        date:
+          type: string
+          format: date
+        value:
+          type: number
+
+    # ── AI SCHEMAS ────────────────────────────────────────────────────────
+    GenerateContentInput:
+      type: object
+      required: [accountId, prompt]
+      properties:
+        accountId:
+          type: integer
+        prompt:
+          type: string
+        platform:
+          type: string
+          enum: [twitter, reddit]
+        tone:
+          type: ["string", "null"]
+          enum: [professional, casual, humorous, informative, promotional]
+        variants:
+          type: integer
+          default: 1
+          description: Number of content variants to generate
+
+    GeneratedContent:
+      type: object
+      required: [variants]
+      properties:
+        variants:
+          type: array
+          items:
+            type: string
+        suggestedHashtags:
+          type: array
+          items:
+            type: string
+        estimatedEngagement:
+          type: number
+
+    OptimizeTimeInput:
+      type: object
+      required: [accountId]
+      properties:
+        accountId:
+          type: integer
+        timezone:
+          type: string
+          default: UTC
+
+    OptimalTimes:
+      type: object
+      required: [accountId, slots]
+      properties:
+        accountId:
+          type: integer
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+
+    TimeSlot:
+      type: object
+      required: [dayOfWeek, hour, score]
+      properties:
+        dayOfWeek:
+          type: integer
+        hour:
+          type: integer
+        score:
+          type: number
+          description: Engagement score 0-100
+
+    # ── QUEUE SCHEMAS ─────────────────────────────────────────────────────
+    QueueJob:
+      type: object
+      required: [id, type, status, createdAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [post_publish, post_retry, analytics_sync, engagement_check]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        payload:
+          type: object
+          additionalProperties: true
+        attempts:
+          type: integer
+          default: 0
+        maxAttempts:
+          type: integer
+          default: 3
+        scheduledFor:
+          type: ["string", "null"]
+          format: date-time
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    QueueStats:
+      type: object
+      required: [pending, processing, completed, failed, successRate]
+      properties:
+        pending:
+          type: integer
+        processing:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        successRate:
+          type: number
+
+    # ── AUDIT SCHEMAS ─────────────────────────────────────────────────────
+    AuditLog:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: ["integer", "null"]
+        postId:
+          type: ["integer", "null"]
+        action:
+          type: string
+        details:
+          type: ["string", "null"]
+        ipAddress:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
