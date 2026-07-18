@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus } from "lucide-react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO } from "date-fns";
 import { SiX, SiReddit } from "react-icons/si";
+import { useLocation } from "wouter";
 
 export default function Calendar() {
+  const [, setLocation] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAccountId, setSelectedAccountId] = useState<string>("all");
 
@@ -33,6 +35,18 @@ export default function Calendar() {
     acc[entry.date] = entry.posts;
     return acc;
   }, {} as Record<string, Post[]>) || {};
+
+  let scheduledCount = 0;
+  let publishedCount = 0;
+  
+  if (calendarData) {
+    calendarData.forEach(day => {
+      day.posts.forEach(p => {
+        if (p.status === 'scheduled') scheduledCount++;
+        if (p.status === 'published') publishedCount++;
+      });
+    });
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-8rem)] flex flex-col">
@@ -72,6 +86,22 @@ export default function Calendar() {
       </div>
 
       <Card className="flex-1 flex flex-col overflow-hidden bg-card/50">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border-b shrink-0 bg-muted/20 gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
+            {accounts?.map(acc => (
+              <div key={acc.id} className="flex items-center gap-1.5 shrink-0 px-2 py-1 rounded-md bg-background border border-border/50 text-xs">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} />
+                <span className="font-medium whitespace-nowrap">{acc.displayName}</span>
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex gap-3 text-xs font-mono shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> {scheduledCount} Scheduled</div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500" /> {publishedCount} Published</div>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-7 border-b shrink-0">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
             <div key={day} className="py-3 text-center text-xs font-mono font-medium uppercase tracking-wider text-muted-foreground border-r last:border-r-0">
@@ -80,7 +110,7 @@ export default function Calendar() {
           ))}
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-background/50">
           {isLoading ? (
             <div className="grid grid-cols-7 h-full">
               {[...Array(35)].map((_, i) => (
@@ -105,11 +135,16 @@ export default function Calendar() {
                 return (
                   <div 
                     key={dateKey} 
-                    className={`border-r border-b min-h-[120px] p-2 transition-colors hover:bg-muted/30 ${
+                    className={`border-r border-b min-h-[120px] p-2 transition-colors hover:bg-muted/30 group ${
                       !isCurrentMonth ? 'bg-muted/10 opacity-50' : ''
                     }`}
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('flex-1')) {
+                         setLocation(`/compose?date=${dateKey}`);
+                      }
+                    }}
                   >
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-2 pointer-events-none">
                       <span className={`text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full ${
                         isToday(day) ? 'bg-primary text-primary-foreground' : ''
                       }`}>
@@ -120,13 +155,18 @@ export default function Calendar() {
                           {dayPosts.length}
                         </Badge>
                       )}
+                      {dayPosts.length === 0 && (
+                         <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-50 mt-1 mr-1" />
+                      )}
                     </div>
                     
                     <div className="space-y-1.5 overflow-y-auto max-h-[100px] no-scrollbar">
                       {dayPosts.map((post) => (
                         <div 
                           key={post.id} 
-                          className="text-xs p-1.5 rounded-sm border truncate cursor-pointer hover:border-foreground/30 transition-colors flex items-center gap-1.5"
+                          className={`text-[10px] p-1.5 rounded-sm border truncate cursor-pointer hover:border-foreground/30 transition-colors flex flex-col gap-0.5
+                            ${post.status === 'scheduled' ? 'border-dashed opacity-80' : ''}
+                          `}
                           title={post.content}
                           style={{ 
                             borderLeftWidth: '3px', 
@@ -134,12 +174,19 @@ export default function Calendar() {
                             backgroundColor: 'var(--card)'
                           }}
                         >
-                          {post.platform === 'twitter' ? <SiX className="h-2.5 w-2.5 shrink-0" /> : <SiReddit className="h-2.5 w-2.5 shrink-0 text-orange-500" />}
-                          <span className="truncate flex-1">{post.content}</span>
-                          {post.status === 'scheduled' && <CalendarIcon className="h-2.5 w-2.5 shrink-0 text-blue-500" />}
+                          <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5 font-mono">
+                            {post.platform === 'twitter' ? <SiX className="h-2 w-2 shrink-0" /> : <SiReddit className="h-2 w-2 shrink-0 text-orange-500" />}
+                            {post.scheduledAt && post.status === 'scheduled' && (
+                              <span className="flex items-center gap-0.5"><Clock className="h-2 w-2" /> {format(new Date(post.scheduledAt), 'h:mm a')}</span>
+                            )}
+                            <span className="truncate">@{post.account?.username}</span>
+                          </div>
+                          <span className="truncate text-foreground font-medium">{post.content}</span>
                         </div>
                       ))}
                     </div>
+                    {/* Invisible div to fill space and capture clicks for new posts */}
+                    <div className="flex-1 min-h-[40px] cursor-pointer" />
                   </div>
                 );
               })}

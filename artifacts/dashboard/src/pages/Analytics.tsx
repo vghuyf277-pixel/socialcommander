@@ -1,13 +1,33 @@
 import { useState } from "react";
-import { useGetAnalyticsOverview, useGetAnalyticsTimeseries, useGetEngagementHeatmap, useListAccounts } from "@workspace/api-client-react";
+import { useGetAnalyticsOverview, useGetAnalyticsTimeseries, useGetEngagementHeatmap, useListAccounts, useGetAccountAnalytics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/lib/utils";
-import { TrendingUp, Users, MessageSquare, Repeat, Heart } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { TrendingUp, Users, MessageSquare, Repeat, Heart, Download } from "lucide-react";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+
+function AccountRow({ account }: { account: any }) {
+  const { data, isLoading } = useGetAccountAnalytics({ accountId: account.id, days: 30 });
+  return (
+    <TableRow className="hover:bg-muted/30 transition-colors">
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.color }} />
+          <span className="font-medium">{account.displayName}</span>
+        </div>
+      </TableCell>
+      <TableCell className="capitalize text-xs font-mono text-muted-foreground">{account.platform}</TableCell>
+      <TableCell className="font-mono">{account.postsCount || 0}</TableCell>
+      <TableCell className="font-mono">{isLoading ? <Skeleton className="h-4 w-12"/> : formatNumber(data?.impressions || 0)}</TableCell>
+      <TableCell className="font-mono">{isLoading ? <Skeleton className="h-4 w-12"/> : formatNumber(data?.likes || 0)}</TableCell>
+      <TableCell className="font-mono font-bold text-primary">{isLoading ? <Skeleton className="h-4 w-16"/> : `${formatNumber(data?.avgEngagementRate || 0)} avg per post`}</TableCell>
+    </TableRow>
+  )
+}
 
 export default function Analytics() {
   const [days, setDays] = useState("30");
@@ -38,13 +58,29 @@ export default function Analytics() {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // Group heatmap by day then hour for the grid
   const heatmapGrid = daysOfWeek.map((_, dayIdx) => {
     return hours.map(hour => {
       const cell = heatmap?.find(c => c.dayOfWeek === dayIdx && c.hour === hour);
       return cell ? cell.value : 0;
     });
   });
+
+  const getTopHours = () => {
+    if (!heatmap) return [];
+    return [...heatmap].sort((a, b) => b.value - a.value).slice(0, 3);
+  };
+
+  const handleExport = () => {
+    if (!timeseries) return;
+    const csv = "Date,Value\n" + timeseries.map(t => `${t.date},${t.value}`).join("\n");
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${metric}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -54,9 +90,14 @@ export default function Analytics() {
           <p className="text-muted-foreground font-mono text-sm mt-1">Global performance metrics and engagement analysis.</p>
         </div>
         
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <Button variant="outline" size="sm" className="gap-2 h-9" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+
           <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[200px] h-9">
               <SelectValue placeholder="All Accounts" />
             </SelectTrigger>
             <SelectContent>
@@ -70,7 +111,7 @@ export default function Analytics() {
           </Select>
 
           <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[120px] h-9">
               <SelectValue placeholder="Timeframe" />
             </SelectTrigger>
             <SelectContent>
@@ -83,44 +124,44 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-card">
+        <Card className="bg-card hover:border-primary/30 transition-colors">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Impressions</p>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Impressions</p>
                 {isLoadingOverview ? <Skeleton className="h-8 w-24" /> : <div className="text-3xl font-bold">{formatNumber(overview?.totalImpressions || 0)}</div>}
               </div>
               <div className="p-2 bg-primary/10 text-primary rounded"><Users className="h-5 w-5" /></div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card">
+        <Card className="bg-card hover:border-red-500/30 transition-colors">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Likes</p>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Likes</p>
                 {isLoadingOverview ? <Skeleton className="h-8 w-24" /> : <div className="text-3xl font-bold">{formatNumber(overview?.totalLikes || 0)}</div>}
               </div>
               <div className="p-2 bg-red-500/10 text-red-500 rounded"><Heart className="h-5 w-5" /></div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card">
+        <Card className="bg-card hover:border-blue-500/30 transition-colors">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Comments</p>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Comments</p>
                 {isLoadingOverview ? <Skeleton className="h-8 w-24" /> : <div className="text-3xl font-bold">{formatNumber(overview?.totalComments || 0)}</div>}
               </div>
               <div className="p-2 bg-blue-500/10 text-blue-500 rounded"><MessageSquare className="h-5 w-5" /></div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card">
+        <Card className="bg-card hover:border-green-500/30 transition-colors">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Reposts</p>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Reposts</p>
                 {isLoadingOverview ? <Skeleton className="h-8 w-24" /> : <div className="text-3xl font-bold">{formatNumber(overview?.totalReposts || 0)}</div>}
               </div>
               <div className="p-2 bg-green-500/10 text-green-500 rounded"><Repeat className="h-5 w-5" /></div>
@@ -137,7 +178,7 @@ export default function Analytics() {
               <CardDescription>Time series analysis over the selected period</CardDescription>
             </div>
             <Select value={metric} onValueChange={(val: any) => setMetric(val)}>
-              <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectTrigger className="w-[140px] h-8 text-xs font-mono">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -154,7 +195,13 @@ export default function Analytics() {
                 <Skeleton className="w-full h-full" />
               ) : timeseries && timeseries.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={timeseries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={timeseries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis 
                       dataKey="date" 
@@ -178,15 +225,16 @@ export default function Analytics() {
                       labelFormatter={(val) => format(new Date(val), 'MMM d, yyyy')}
                       formatter={(val: number) => [formatNumber(val), metric.charAt(0).toUpperCase() + metric.slice(1)]}
                     />
-                    <Line 
+                    <Area 
                       type="monotone" 
                       dataKey="value" 
                       stroke="hsl(var(--primary))" 
+                      fillOpacity={1} 
+                      fill="url(#colorMetric)"
                       strokeWidth={3}
-                      dot={false}
-                      activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
+                      activeDot={{ r: 6, fill: "hsl(var(--primary))", strokeWidth: 0 }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-md">
@@ -202,9 +250,9 @@ export default function Analytics() {
             <CardTitle>Engagement Density</CardTitle>
             <CardDescription>Hotspots across week and hours</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1">
+          <CardContent className="flex-1 flex flex-col">
             {isLoadingHeatmap ? (
-              <Skeleton className="w-full h-[350px]" />
+              <Skeleton className="w-full h-full flex-1" />
             ) : heatmap && heatmap.length > 0 ? (
               <div className="flex flex-col h-full">
                 <div className="flex-1 flex">
@@ -220,7 +268,7 @@ export default function Analytics() {
                         {dayRow.map((val, hIdx) => (
                           <div 
                             key={`${dIdx}-${hIdx}`} 
-                            className={`rounded-sm w-full h-full ${getHeatmapColor(val, heatmapMax)}`}
+                            className={`rounded-sm w-full h-full ${getHeatmapColor(val, heatmapMax)} hover:opacity-75 transition-opacity cursor-crosshair`}
                             title={`${daysOfWeek[dIdx]} ${hIdx}:00 - ${val} engagements`}
                           />
                         ))}
@@ -238,23 +286,57 @@ export default function Analytics() {
                   <div className="flex-1 text-right">23</div>
                 </div>
 
-                <div className="mt-6 p-4 bg-muted/20 border rounded-lg">
-                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-                    <TrendingUp className="h-4 w-4 text-primary" /> Key Insight
+                <div className="mt-6 space-y-3">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" /> Peak Hours
                   </h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Highest engagement clusters occur on {overview?.topAccount ? "specific nodes" : "mid-week afternoons"}. Focus scheduled drops during the darkest intense blocks to maximize organic reach and viral potential.
-                  </p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {getTopHours().map((h, i) => (
+                      <div key={i} className="flex justify-between items-center p-2.5 bg-muted/30 border border-border/50 rounded-md text-sm">
+                        <span className="font-mono text-muted-foreground">{daysOfWeek[h.dayOfWeek]} {h.hour}:00</span>
+                        <span className="font-bold text-foreground">{h.value} <span className="text-xs font-mono font-normal text-muted-foreground">avg eng</span></span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-md">
+              <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-md flex-1">
                 Not enough density data
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Per-Node Breakdown</CardTitle>
+          <CardDescription>Performance metrics across all connected accounts</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0 border-t">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="text-xs font-mono uppercase tracking-wider">Account</TableHead>
+                <TableHead className="text-xs font-mono uppercase tracking-wider">Platform</TableHead>
+                <TableHead className="text-xs font-mono uppercase tracking-wider">Posts</TableHead>
+                <TableHead className="text-xs font-mono uppercase tracking-wider">Impressions</TableHead>
+                <TableHead className="text-xs font-mono uppercase tracking-wider">Likes</TableHead>
+                <TableHead className="text-xs font-mono uppercase tracking-wider text-primary">Engagement</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accounts?.map(acc => <AccountRow key={acc.id} account={acc} />)}
+              {accounts?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No accounts connected</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

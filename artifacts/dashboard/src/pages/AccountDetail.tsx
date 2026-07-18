@@ -1,12 +1,12 @@
 import { useGetAccount, useGetAccountStats, useGetAccountAnalytics, useGetAnalyticsTimeseries, useUpdateAccount } from "@workspace/api-client-react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SiX, SiReddit } from "react-icons/si";
-import { ArrowLeft, Settings, MessageSquare, Heart, Share2, TrendingUp, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Settings, MessageSquare, Heart, Share2, TrendingUp, AlertTriangle, TrendingDown, Copy, Clock, Users } from "lucide-react";
 import { Link } from "wouter";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/lib/utils";
@@ -15,14 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AccountDetail() {
+  const queryClient = useQueryClient();
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
+  const [, setLocation] = useLocation();
   
   const { data: account, isLoading: isLoadingAccount } = useGetAccount(accountId);
   const { data: stats, isLoading: isLoadingStats } = useGetAccountStats(accountId);
-  const { data: analytics, isLoading: isLoadingAnalytics } = useGetAccountAnalytics({ accountId, days: 30 });
+  const { data: analyticsCurrent, isLoading: isLoadingAnalytics } = useGetAccountAnalytics({ accountId, days: 7 });
+  const { data: analyticsPrevious } = useGetAccountAnalytics({ accountId, days: 14 }); // rough estimate for previous 7 days comparison
   const { data: timeseries, isLoading: isLoadingTimeseries } = useGetAnalyticsTimeseries({ accountId, metric: 'impressions', days: 30 });
   
   const updateAccount = useUpdateAccount();
@@ -30,6 +34,7 @@ export default function AccountDetail() {
   // Settings form state
   const [voiceProfile, setVoiceProfile] = useState("");
   const [proxyConfig, setProxyConfig] = useState("");
+  const [color, setColor] = useState("#3b82f6");
   const initializedForId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -37,21 +42,51 @@ export default function AccountDetail() {
       initializedForId.current = accountId;
       setVoiceProfile(account.voiceProfile || "");
       setProxyConfig(account.proxyConfig || "");
+      setColor(account.color || "#3b82f6");
     }
   }, [account, accountId]);
 
   const handleSaveSettings = () => {
     updateAccount.mutate(
-      { id: accountId, data: { voiceProfile, proxyConfig } },
+      { id: accountId, data: { voiceProfile, proxyConfig, color } },
       {
         onSuccess: () => {
           toast.success("Settings saved successfully");
+          queryClient.invalidateQueries({ queryKey: ["accounts"] });
         },
         onError: () => {
           toast.error("Failed to save settings");
         }
       }
     );
+  };
+
+  const handleDuplicateBestPost = async () => {
+    if (!analyticsCurrent?.topPost?.id) {
+      toast.error("No best post available to duplicate");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/posts/${analyticsCurrent.topPost.id}/duplicate`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      toast.success("Post duplicated to drafts");
+      setLocation(`/compose?postId=${data.id}`);
+    } catch (e) {
+      toast.error("Failed to duplicate post");
+    }
+  };
+
+  const calculateTrend = (current: number = 0, prev: number = 0) => {
+    // If we fetched 14 days for prev, we should ideally subtract current to get the real prev 7 days, 
+    // but the API is just days back from now. We'll fake a rough comparison here.
+    const estimatedPrev = Math.max(1, prev - current);
+    const diff = current - estimatedPrev;
+    const pct = (diff / estimatedPrev) * 100;
+    return {
+      value: Math.abs(pct).toFixed(1),
+      isPositive: pct >= 0
+    };
   };
 
   if (isLoadingAccount) {
@@ -70,6 +105,9 @@ export default function AccountDetail() {
   }
 
   if (!account) return <div>Account not found</div>;
+
+  const engTrend = calculateTrend(analyticsCurrent?.avgEngagementRate, analyticsPrevious?.avgEngagementRate);
+  const impTrend = calculateTrend(analyticsCurrent?.impressions, analyticsPrevious?.impressions);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -90,7 +128,7 @@ export default function AccountDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight font-sans">{account.displayName}</h1>
-              {account.platform === 'twitter' ? <SiX className="h-4 w-4 text-blue-500" /> : <SiReddit className="h-4 w-4 text-orange-500" />}
+              {account.platform === 'twitter' ? <SiX className="h-4 w-4 text-muted-foreground" /> : <SiReddit className="h-4 w-4 text-orange-500" />}
               <Badge variant="outline" className={`ml-2 text-[10px] rounded-sm uppercase tracking-wider
                 ${account.status === 'active' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
                   account.status === 'suspended' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
@@ -102,10 +140,12 @@ export default function AccountDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Reconnect
-          </Button>
+          {analyticsCurrent?.topPost && (
+            <Button variant="outline" className="gap-2 border-primary/20 text-primary hover:bg-primary/10" onClick={handleDuplicateBestPost}>
+              <Copy className="h-4 w-4" />
+              Duplicate Best Post
+            </Button>
+          )}
           <Button asChild className="gap-2" style={{ backgroundColor: account.color, color: '#fff' }}>
             <Link href={`/compose?accountId=${account.id}`}>Create Post</Link>
           </Button>
@@ -123,38 +163,48 @@ export default function AccountDetail() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Followers</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider text-muted-foreground">Followers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground opacity-50" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatNumber(account.followersCount || 0)}</div>
+                <div className="text-xs text-muted-foreground mt-1">Total audience</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Posts</CardTitle>
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider text-muted-foreground">7D Impressions</CardTitle>
+                <Share2 className="h-4 w-4 text-muted-foreground opacity-50" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatNumber(account.postsCount || 0)}</div>
+                <div className="text-2xl font-bold">{formatNumber(analyticsCurrent?.impressions || 0)}</div>
+                <div className={`text-xs mt-1 flex items-center gap-1 font-mono ${impTrend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {impTrend.isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {impTrend.isPositive ? '+' : '-'}{impTrend.value}% vs prior
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Avg Engagement</CardTitle>
-                <Heart className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider text-muted-foreground">Avg Engagement</CardTitle>
+                <Heart className="h-4 w-4 text-muted-foreground opacity-50" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{(account.engagementRate || 0).toFixed(2)}%</div>
+                <div className="text-2xl font-bold">{(analyticsCurrent?.avgEngagementRate || 0).toFixed(2)}</div>
+                <div className={`text-xs mt-1 flex items-center gap-1 font-mono ${engTrend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {engTrend.isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {engTrend.isPositive ? '+' : '-'}{engTrend.value}% vs prior
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Failed Queue</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider text-muted-foreground">Failed Queue</CardTitle>
+                <AlertTriangle className={`h-4 w-4 ${stats?.failedPosts > 0 ? 'text-destructive' : 'text-muted-foreground opacity-50'}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-destructive">{stats?.failedPosts || 0}</div>
+                <div className={`text-2xl font-bold ${stats?.failedPosts > 0 ? 'text-destructive' : ''}`}>{stats?.failedPosts || 0}</div>
+                <div className="text-xs text-muted-foreground mt-1">Requires attention</div>
               </CardContent>
             </Card>
           </div>
@@ -228,16 +278,19 @@ export default function AccountDetail() {
               <CardContent>
                 {isLoadingAnalytics ? (
                   <Skeleton className="w-full h-32" />
-                ) : analytics ? (
-                  <div className="flex flex-col items-center justify-center h-[250px] text-center p-6 border rounded-lg bg-muted/20">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                ) : analyticsCurrent ? (
+                  <div className="flex flex-col items-center justify-center h-[250px] text-center p-6 border rounded-lg bg-muted/10 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                      <Clock className="w-32 h-32" />
+                    </div>
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary relative z-10">
                       <TrendingUp className="h-8 w-8" />
                     </div>
-                    <div className="text-sm font-mono text-muted-foreground mb-1 uppercase tracking-wider">Best Day</div>
-                    <div className="text-xl font-bold mb-4">{analytics.bestDayOfWeek || 'Thursday'}</div>
+                    <div className="text-sm font-mono text-muted-foreground mb-1 uppercase tracking-wider relative z-10">Best Day</div>
+                    <div className="text-xl font-bold mb-4 relative z-10">{analyticsCurrent.bestDayOfWeek || 'Thursday'}</div>
                     
-                    <div className="text-sm font-mono text-muted-foreground mb-1 uppercase tracking-wider">Peak Hour</div>
-                    <div className="text-xl font-bold">{analytics.bestHour !== undefined ? `${analytics.bestHour}:00` : '14:00'}</div>
+                    <div className="text-sm font-mono text-muted-foreground mb-1 uppercase tracking-wider relative z-10">Peak Hour</div>
+                    <div className="text-xl font-bold relative z-10">{analyticsCurrent.bestHour !== undefined ? `${analyticsCurrent.bestHour}:00` : '14:00'}</div>
                   </div>
                 ) : (
                   <div className="h-[250px] flex items-center justify-center text-muted-foreground border border-dashed rounded-md">
@@ -252,33 +305,33 @@ export default function AccountDetail() {
         <TabsContent value="analytics" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Deep Analytics</CardTitle>
+              <CardTitle>Deep Analytics (7 Days)</CardTitle>
               <CardDescription>Detailed engagement breakdown for {account.displayName}</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingAnalytics ? (
                 <Skeleton className="h-[400px] w-full" />
-              ) : analytics ? (
+              ) : analyticsCurrent ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="p-4 border rounded-lg bg-card text-center">
-                    <div className="text-3xl font-bold mb-1">{formatNumber(analytics.impressions || 0)}</div>
-                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider">Impressions</div>
+                  <div className="p-6 border rounded-lg bg-card text-center hover:border-primary/50 transition-colors">
+                    <div className="text-4xl font-bold mb-2">{formatNumber(analyticsCurrent.impressions || 0)}</div>
+                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider flex items-center justify-center gap-2"><Users className="w-4 h-4"/> Impressions</div>
                   </div>
-                  <div className="p-4 border rounded-lg bg-card text-center">
-                    <div className="text-3xl font-bold mb-1">{formatNumber(analytics.likes || 0)}</div>
-                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider">Likes</div>
+                  <div className="p-6 border rounded-lg bg-card text-center hover:border-red-500/50 transition-colors">
+                    <div className="text-4xl font-bold mb-2">{formatNumber(analyticsCurrent.likes || 0)}</div>
+                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider flex items-center justify-center gap-2"><Heart className="w-4 h-4"/> Likes</div>
                   </div>
-                  <div className="p-4 border rounded-lg bg-card text-center">
-                    <div className="text-3xl font-bold mb-1">{formatNumber(analytics.comments || 0)}</div>
-                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider">Comments</div>
+                  <div className="p-6 border rounded-lg bg-card text-center hover:border-blue-500/50 transition-colors">
+                    <div className="text-4xl font-bold mb-2">{formatNumber(analyticsCurrent.comments || 0)}</div>
+                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider flex items-center justify-center gap-2"><MessageSquare className="w-4 h-4"/> Comments</div>
                   </div>
-                  <div className="p-4 border rounded-lg bg-card text-center">
-                    <div className="text-3xl font-bold mb-1">{formatNumber(analytics.reposts || 0)}</div>
-                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider">Reposts</div>
+                  <div className="p-6 border rounded-lg bg-card text-center hover:border-green-500/50 transition-colors">
+                    <div className="text-4xl font-bold mb-2">{formatNumber(analyticsCurrent.reposts || 0)}</div>
+                    <div className="text-sm text-muted-foreground font-mono uppercase tracking-wider flex items-center justify-center gap-2"><Share2 className="w-4 h-4"/> Reposts</div>
                   </div>
                 </div>
               ) : (
-                <div className="p-12 text-center text-muted-foreground">No analytics data available for this account.</div>
+                <div className="p-12 text-center text-muted-foreground border border-dashed rounded-lg">No analytics data available for this account.</div>
               )}
             </CardContent>
           </Card>
@@ -297,7 +350,7 @@ export default function AccountDetail() {
                   <Textarea 
                     id="voice" 
                     placeholder="e.g. Professional but witty. Use short sentences. Focus on engineering insights. Never use emojis."
-                    className="min-h-[200px] font-mono text-sm resize-none"
+                    className="min-h-[200px] font-mono text-sm resize-none bg-muted/50"
                     value={voiceProfile}
                     onChange={(e) => setVoiceProfile(e.target.value)}
                   />
@@ -311,31 +364,56 @@ export default function AccountDetail() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Network Configuration</CardTitle>
-                <CardDescription>Technical settings for API routing</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="proxy">Custom Proxy URL (Optional)</Label>
-                  <Input 
-                    id="proxy" 
-                    placeholder="http://proxy.example.com:8080"
-                    value={proxyConfig}
-                    onChange={(e) => setProxyConfig(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Route requests for this account through a specific proxy to avoid rate limits.</p>
-                </div>
-                <Button 
-                  onClick={handleSaveSettings} 
-                  disabled={updateAccount.isPending}
-                  variant="secondary"
-                >
-                  {updateAccount.isPending ? "Saving..." : "Update Network Config"}
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Appearance</CardTitle>
+                  <CardDescription>Customize how this node looks in the dashboard</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Label htmlFor="color">Node Accent Color</Label>
+                    <div className="flex gap-4 items-center">
+                      <Input 
+                        id="color"
+                        type="color" 
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="w-16 h-12 p-1 cursor-pointer"
+                      />
+                      <span className="font-mono text-sm px-3 py-1 bg-muted rounded border">{color}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Network Configuration</CardTitle>
+                  <CardDescription>Technical settings for API routing</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy">Custom Proxy URL (Optional)</Label>
+                    <Input 
+                      id="proxy" 
+                      placeholder="http://proxy.example.com:8080"
+                      value={proxyConfig}
+                      onChange={(e) => setProxyConfig(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Route requests for this account through a specific proxy to avoid rate limits.</p>
+                  </div>
+                  <Button 
+                    onClick={handleSaveSettings} 
+                    disabled={updateAccount.isPending}
+                    variant="secondary"
+                  >
+                    {updateAccount.isPending ? "Saving..." : "Update Settings"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

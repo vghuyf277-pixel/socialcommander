@@ -183,6 +183,35 @@ router.delete("/accounts/:id", async (req, res): Promise<void> => {
   res.status(204).send();
 });
 
+// PATCH /accounts/:id/status — quick toggle active/paused/suspended
+router.patch("/accounts/:id/status", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { status } = req.body as { status?: string };
+  if (!["active", "paused", "suspended"].includes(status ?? "")) {
+    res.status(400).json({ error: "status must be active | paused | suspended" });
+    return;
+  }
+
+  const [account] = await db
+    .update(accountsTable)
+    .set({ status: status as Account["status"] })
+    .where(eq(accountsTable.id, id))
+    .returning();
+
+  if (!account) { res.status(404).json({ error: "Account not found" }); return; }
+
+  await db.insert(auditLogsTable).values({
+    accountId: id,
+    action: "account_status_changed",
+    details: `Status changed to ${status}`,
+    ipAddress: req.ip,
+  });
+
+  res.json(account);
+});
+
 // GET /accounts/:id/stats
 router.get("/accounts/:id/stats", async (req, res): Promise<void> => {
   const params = GetAccountStatsParams.safeParse({ id: req.params.id });

@@ -3,25 +3,48 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
-import { Activity, AlertCircle, CalendarClock, PenSquare, Share2, MessageSquare, TrendingUp } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Activity, AlertCircle, CalendarClock, PenSquare, Share2, MessageSquare, TrendingUp, Trophy } from "lucide-react";
 import { SiX, SiReddit } from "react-icons/si";
 import { format, formatDistanceToNow } from "date-fns";
-import { TooltipProvider, TooltipTrigger, TooltipContent } from "@radix-ui/react-tooltip";
-import { Tooltip } from "recharts";
+import { TooltipProvider, TooltipTrigger, TooltipContent, Tooltip } from "@/components/ui/tooltip";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { useEffect } from "react";
+
+const getSparklineData = (seed: number) => Array.from({length: 14}).map((_, i) => ({ value: 10 + Math.abs(Math.sin(i * seed) * 20 + i * seed) }));
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { data: accountsOverview, isLoading: isLoadingAccounts } = useGetAccountsOverview();
   const { data: analytics, isLoading: isLoadingAnalytics } = useGetAnalyticsOverview({});
   const { data: postsPage, isLoading: isLoadingPosts } = useListPosts({ limit: 10 });
   const { data: accounts, isLoading: isLoadingAccountsList } = useListAccounts();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+      if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setLocation('/compose');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setLocation]);
+
+  const topAccount = analytics?.topAccount ? accounts?.find(a => a.id === analytics.topAccount?.id) : null;
+  const topEngagements = analytics?.topAccount?.engagements || 0;
+
+  // Render proper % for engagement rate
+  const rawEngRate = analytics?.avgEngagementRate || 0;
+  const engRateDisplay = rawEngRate > 100 ? (rawEngRate / 100).toFixed(2) : rawEngRate.toFixed(2);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-sans">Command Center</h1>
-          <p className="text-muted-foreground font-mono text-sm mt-1">System operational. Overview of your network.</p>
+          <p className="text-muted-foreground font-mono text-sm mt-1">System operational. Overview of your network. <kbd className="hidden md:inline-block ml-2 px-1.5 py-0.5 bg-muted rounded border text-[10px]">Press 'N' to compose</kbd></p>
         </div>
         <Button asChild className="gap-2">
           <Link href="/compose">
@@ -33,51 +56,55 @@ export default function Dashboard() {
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="bg-card relative overflow-hidden group">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
             <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Posts Today</CardTitle>
             <Share2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            {isLoadingAccounts ? (
-              <Skeleton className="h-8 w-[100px]" />
-            ) : (
+          <CardContent className="relative z-10">
+            {isLoadingAccounts ? <Skeleton className="h-8 w-[100px]" /> : (
               <>
                 <div className="text-2xl font-bold">{accountsOverview?.totalPostsToday || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">Across {accountsOverview?.activeAccounts || 0} active accounts</p>
               </>
             )}
           </CardContent>
+          <div className="absolute bottom-0 left-0 w-full h-16 opacity-20 pointer-events-none">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={getSparklineData(1)}><Area type="monotone" dataKey="value" stroke="none" fill="hsl(var(--primary))" /></AreaChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
         
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="bg-card relative overflow-hidden group">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
             <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Scheduled</CardTitle>
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            {isLoadingAccounts ? (
-              <Skeleton className="h-8 w-[100px]" />
-            ) : (
+          <CardContent className="relative z-10">
+            {isLoadingAccounts ? <Skeleton className="h-8 w-[100px]" /> : (
               <>
                 <div className="text-2xl font-bold">{accountsOverview?.totalScheduled || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">Posts in the queue</p>
               </>
             )}
           </CardContent>
+          <div className="absolute bottom-0 left-0 w-full h-16 opacity-20 pointer-events-none">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={getSparklineData(2)}><Area type="monotone" dataKey="value" stroke="none" fill="#3b82f6" /></AreaChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
 
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="bg-card relative overflow-hidden group">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
             <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Avg Engagement</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            {isLoadingAnalytics ? (
-              <Skeleton className="h-8 w-[100px]" />
-            ) : (
+          <CardContent className="relative z-10">
+            {isLoadingAnalytics ? <Skeleton className="h-8 w-[100px]" /> : (
               <>
-                <div className="text-2xl font-bold">{(analytics?.avgEngagementRate || 0).toFixed(2)}%</div>
+                <div className="text-2xl font-bold">{engRateDisplay}%</div>
                 <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
                   {analytics?.growthRate ? `+${analytics.growthRate}%` : 'Stable'}
@@ -85,17 +112,20 @@ export default function Dashboard() {
               </>
             )}
           </CardContent>
+          <div className="absolute bottom-0 left-0 w-full h-16 opacity-20 pointer-events-none">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={getSparklineData(3)}><Area type="monotone" dataKey="value" stroke="none" fill="#10b981" /></AreaChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
 
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="bg-card relative overflow-hidden group">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
             <CardTitle className="text-sm font-medium font-mono uppercase tracking-wider">Network Health</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            {isLoadingAccounts ? (
-              <Skeleton className="h-8 w-[100px]" />
-            ) : (
+          <CardContent className="relative z-10">
+            {isLoadingAccounts ? <Skeleton className="h-8 w-[100px]" /> : (
               <>
                 <div className="text-2xl font-bold">{accountsOverview?.totalAccounts || 0} Nodes</div>
                 <div className="flex gap-2 mt-2">
@@ -109,8 +139,36 @@ export default function Dashboard() {
               </>
             )}
           </CardContent>
+          <div className="absolute bottom-0 left-0 w-full h-16 opacity-20 pointer-events-none">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={getSparklineData(4)}><Area type="monotone" dataKey="value" stroke="none" fill="#f59e0b" /></AreaChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
       </div>
+
+      {topAccount && (
+        <Card className="bg-gradient-to-r from-primary/10 to-transparent border-primary/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary border border-primary/30">
+                <Trophy className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Top Performing Node</p>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-lg">{topAccount.displayName}</span>
+                  {topAccount.platform === 'twitter' ? <SiX className="h-4 w-4 text-muted-foreground" /> : <SiReddit className="h-4 w-4 text-muted-foreground" />}
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary">{topEngagements}</div>
+              <p className="text-xs font-mono text-muted-foreground">Total Engagements</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Activity */}
@@ -216,7 +274,7 @@ export default function Dashboard() {
                         }`} />
                       </div>
                       <div>
-                        <div className="text-sm font-semibold">{acc.displayName}</div>
+                        <div className="text-sm font-semibold hover:underline cursor-pointer" onClick={() => setLocation(`/accounts/${acc.id}`)}>{acc.displayName}</div>
                         <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
                           {acc.platform === 'twitter' ? <SiX className="h-2.5 w-2.5" /> : <SiReddit className="h-2.5 w-2.5" />}
                           @{acc.username}

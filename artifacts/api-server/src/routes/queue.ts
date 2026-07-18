@@ -42,6 +42,42 @@ router.get("/queue/jobs", async (req, res): Promise<void> => {
   })));
 });
 
+// POST /queue/jobs/:id/retry — reset a failed job back to pending
+router.post("/queue/jobs/:id/retry", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid job id" }); return; }
+
+  const [job] = await db.select().from(queueJobsTable).where(sql`${queueJobsTable.id} = ${id}`);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  if (job.status !== "failed") { res.status(409).json({ error: "Only failed jobs can be retried" }); return; }
+
+  const [updated] = await db
+    .update(queueJobsTable)
+    .set({ status: "pending", attempts: 0, errorMessage: null, scheduledFor: new Date() })
+    .where(sql`${queueJobsTable.id} = ${id}`)
+    .returning();
+
+  logger.info({ jobId: id }, "Job queued for retry");
+  res.json({ id: String(updated.id), status: updated.status });
+});
+
+// DELETE /queue/jobs/:id — cancel a pending job
+router.delete("/queue/jobs/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid job id" }); return; }
+
+  const [job] = await db.select().from(queueJobsTable).where(sql`${queueJobsTable.id} = ${id}`);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  if (job.status !== "pending") { res.status(409).json({ error: "Only pending jobs can be cancelled" }); return; }
+
+  await db.update(queueJobsTable)
+    .set({ status: "failed", errorMessage: "Cancelled by user" })
+    .where(sql`${queueJobsTable.id} = ${id}`);
+
+  logger.info({ jobId: id }, "Job cancelled");
+  res.status(204).send();
+});
+
 // GET /queue/stats
 router.get("/queue/stats", async (req, res): Promise<void> => {
   const [pending] = await db

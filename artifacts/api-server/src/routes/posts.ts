@@ -374,4 +374,25 @@ router.post("/posts/:id/schedule", async (req, res): Promise<void> => {
   res.json({ ...post, account: account ?? null });
 });
 
+// POST /posts/:id/duplicate — clone as draft for a fresh edit
+router.post("/:id/duplicate", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [orig] = await db.select().from(postsTable).where(eq(postsTable.id, id));
+  if (!orig) { res.status(404).json({ error: "Post not found" }); return; }
+
+  const [duped] = await db.insert(postsTable).values({
+    accountId: orig.accountId,
+    content: orig.content,
+    mediaUrls: orig.mediaUrls,
+    status: "draft",
+    subreddit: orig.subreddit,
+    postTitle: orig.postTitle ? `${orig.postTitle} (copy)` : null,
+    aiGenerated: orig.aiGenerated,
+  }).returning();
+
+  res.status(201).json(duped);
+});
+
 export default router;
