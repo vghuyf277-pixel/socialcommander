@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, inArray } from "drizzle-orm";
 import { db, postsTable, accountsTable, auditLogsTable, queueJobsTable } from "@workspace/db";
 import type { Post } from "@workspace/db";
 import {
@@ -18,19 +18,19 @@ import {
 
 const router: IRouter = Router();
 
-// Helper: fetch post with account
-async function getPostWithAccount(id: number) {
-  const posts = await db
+// Helper: attach account objects to a list of posts
+async function attachAccounts(posts: typeof postsTable.$inferSelect[]) {
+  if (posts.length === 0) return posts.map((p) => ({ ...p, account: null }));
+  const accountIds = [...new Set(posts.map((p) => p.accountId))];
+  const accounts = await db
     .select()
-    .from(postsTable)
-    .where(eq(postsTable.id, id));
-  if (!posts[0]) return null;
-  const post = posts[0];
-  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, post.accountId));
-  return { ...post, account: account ?? null };
+    .from(accountsTable)
+    .where(inArray(accountsTable.id, accountIds));
+  const map = Object.fromEntries(accounts.map((a) => [a.id, a]));
+  return posts.map((p) => ({ ...p, account: map[p.accountId] ?? null }));
 }
 
-// GET /posts
+// GET /posts — paginated, filtered at the DB level
 router.get("/posts", async (req, res): Promise<void> => {
   const query = ListPostsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -40,42 +40,41 @@ router.get("/posts", async (req, res): Promise<void> => {
 
   const { accountId, status, platform, limit = 50, offset = 0 } = query.data;
 
-  // Build filters
+  // Build WHERE conditions
   const conditions: ReturnType<typeof sql>[] = [];
   if (accountId) conditions.push(sql`${postsTable.accountId} = ${accountId}`);
   if (status && status !== "all") conditions.push(sql`${postsTable.status} = ${status}`);
+
+  // For platform filter we need a JOIN — build subquery of matching account ids
+  let platformAccountIds: number[] | null = null;
   if (platform && platform !== "all") {
-    // filter by account platform
+    const accs = await db
+      .select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(sql`${accountsTable.platform} = ${platform}`);
+    platformAccountIds = accs.map((a) => a.id);
+    if (platformAccountIds.length === 0) {
+      res.json({ posts: [], total: 0, limit, offset });
+      return;
+    }
+    conditions.push(sql`${postsTable.accountId} = ANY(ARRAY[${sql.join(platformAccountIds.map((id) => sql`${id}`), sql`, `)}]::int[])`);
   }
 
-  const allPosts = await db
-    .select()
-    .from(postsTable)
-    .orderBy(desc(postsTable.createdAt));
+  const where = conditions.length > 0
+    ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+    : sql``;
 
-  let filtered = allPosts;
-  if (accountId) filtered = filtered.filter((p) => p.accountId === accountId);
-  if (status && status !== "all") filtered = filtered.filter((p) => p.status === status);
+  // Count + page in one pass
+  const [countRow] = await db.execute<{ count: string }>(
+    sql`SELECT COUNT(*)::text as count FROM posts ${where}`
+  );
+  const total = Number(countRow?.count ?? 0);
 
-  // Attach accounts
-  const accountIds = [...new Set(filtered.map((p) => p.accountId))];
-  const accounts = accountIds.length > 0
-    ? await db.select().from(accountsTable).where(sql`${accountsTable.id} = ANY(ARRAY[${sql.join(accountIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
-    : [];
+  const rawPosts = await db.execute<typeof postsTable.$inferSelect>(
+    sql`SELECT * FROM posts ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
+  );
 
-  if (platform && platform !== "all") {
-    filtered = filtered.filter((p) => {
-      const acc = accounts.find((a) => a.id === p.accountId);
-      return acc?.platform === platform;
-    });
-  }
-
-  const total = filtered.length;
-  const page = filtered.slice(offset, offset + limit);
-
-  const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
-  const posts = page.map((p) => ({ ...p, account: accountMap[p.accountId] ?? null }));
-
+  const posts = await attachAccounts(rawPosts.rows as typeof postsTable.$inferSelect[]);
   res.json({ posts, total, limit, offset });
 });
 
@@ -126,7 +125,6 @@ router.post("/posts", async (req, res): Promise<void> => {
     ipAddress: req.ip,
   });
 
-  // Update account post count
   await db
     .update(accountsTable)
     .set({ postsCount: (account.postsCount ?? 0) + 1 })
@@ -136,9 +134,14 @@ router.post("/posts", async (req, res): Promise<void> => {
   res.status(201).json({ ...post, account });
 });
 
-// GET /posts/calendar  (must be before /:id)
+// GET /posts/calendar — MUST be before /:id
 router.get("/posts/calendar", async (req, res): Promise<void> => {
-  const query = GetCalendarQueryParams.safeParse(req.query);
+  // Normalize dates — accept ISO strings or YYYY-MM-DD
+  const raw = req.query as Record<string, string>;
+  if (raw.startDate) raw.startDate = raw.startDate.split("T")[0];
+  if (raw.endDate) raw.endDate = raw.endDate.split("T")[0];
+
+  const query = GetCalendarQueryParams.safeParse(raw);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
@@ -146,28 +149,29 @@ router.get("/posts/calendar", async (req, res): Promise<void> => {
 
   const { startDate, endDate, accountId } = query.data;
 
-  let posts = await db
+  const conditions: ReturnType<typeof sql>[] = [
+    sql`(
+      (${postsTable.scheduledAt}::date >= ${startDate}::date AND ${postsTable.scheduledAt}::date <= ${endDate}::date)
+      OR
+      (${postsTable.publishedAt}::date >= ${startDate}::date AND ${postsTable.publishedAt}::date <= ${endDate}::date)
+    )`,
+  ];
+  if (accountId) conditions.push(sql`${postsTable.accountId} = ${accountId}`);
+
+  const posts = await db
     .select()
     .from(postsTable)
-    .where(
-      sql`(${postsTable.scheduledAt} >= ${startDate}::date OR ${postsTable.publishedAt} >= ${startDate}::date)
-          AND (${postsTable.scheduledAt} <= ${endDate}::date + interval '1 day' OR ${postsTable.publishedAt} <= ${endDate}::date + interval '1 day')`
-    );
-
-  if (accountId) posts = posts.filter((p) => p.accountId === accountId);
-
-  // Group by date
-  const grouped: Record<string, typeof posts> = {};
-  for (const post of posts) {
-    const d = (post.scheduledAt ?? post.publishedAt ?? post.createdAt)
-      .toISOString()
-      .split("T")[0];
-    if (!grouped[d]) grouped[d] = [];
-    grouped[d].push(post);
-  }
+    .where(sql.join(conditions, sql` AND `));
 
   const accounts = await db.select().from(accountsTable);
   const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
+
+  const grouped: Record<string, typeof posts> = {};
+  for (const post of posts) {
+    const d = (post.scheduledAt ?? post.publishedAt ?? post.createdAt).toISOString().split("T")[0];
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(post);
+  }
 
   const calendar = Object.entries(grouped).map(([d, dayPosts]) => ({
     date: d,
@@ -177,7 +181,7 @@ router.get("/posts/calendar", async (req, res): Promise<void> => {
   res.json(calendar);
 });
 
-// GET /posts/recent  (must be before /:id)
+// GET /posts/recent — MUST be before /:id
 router.get("/posts/recent", async (req, res): Promise<void> => {
   const query = GetRecentPostsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -186,19 +190,37 @@ router.get("/posts/recent", async (req, res): Promise<void> => {
   }
 
   const limit = query.data.limit ?? 10;
-
   const posts = await db
     .select()
     .from(postsTable)
-    .where(sql`${postsTable.status} = 'published'`)
+    .where(eq(postsTable.status, "published"))
     .orderBy(desc(postsTable.publishedAt))
     .limit(limit);
 
-  const accounts = await db.select().from(accountsTable);
-  const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
-  const result = posts.map((p) => ({ ...p, account: accountMap[p.accountId] ?? null }));
+  const enriched = await attachAccounts(posts);
+  res.json(enriched);
+});
 
-  res.json(result);
+// POST /posts/bulk-delete — MUST be before /:id
+router.post("/posts/bulk-delete", async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: unknown };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids must be a non-empty array of integers" });
+    return;
+  }
+  const validIds = ids.filter((id): id is number => Number.isInteger(id));
+  if (validIds.length === 0) {
+    res.status(400).json({ error: "No valid integer ids provided" });
+    return;
+  }
+
+  const deleted = await db
+    .delete(postsTable)
+    .where(inArray(postsTable.id, validIds))
+    .returning();
+
+  req.log.info({ deleted: deleted.length, ids: validIds }, "Bulk post delete");
+  res.json({ deleted: deleted.length });
 });
 
 // GET /posts/:id
@@ -209,13 +231,13 @@ router.get("/posts/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const post = await getPostWithAccount(params.data.id);
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, params.data.id));
   if (!post) {
     res.status(404).json({ error: "Post not found" });
     return;
   }
-
-  res.json(post);
+  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, post.accountId));
+  res.json({ ...post, account: account ?? null });
 });
 
 // PATCH /posts/:id
@@ -305,12 +327,7 @@ router.post("/posts/:id/publish", async (req, res): Promise<void> => {
     return;
   }
 
-  // Update account last post time
-  await db
-    .update(accountsTable)
-    .set({ lastPostAt: new Date() })
-    .where(eq(accountsTable.id, post.accountId));
-
+  await db.update(accountsTable).set({ lastPostAt: new Date() }).where(eq(accountsTable.id, post.accountId));
   await db.insert(auditLogsTable).values({
     accountId: post.accountId,
     postId: post.id,
@@ -340,9 +357,7 @@ router.post("/posts/:id/schedule", async (req, res): Promise<void> => {
 
   let scheduledAt = new Date(body.data.scheduledAt);
   const jitter = body.data.jitterMinutes ?? 0;
-  if (jitter > 0) {
-    scheduledAt = new Date(scheduledAt.getTime() + Math.random() * jitter * 60 * 1000);
-  }
+  if (jitter > 0) scheduledAt = new Date(scheduledAt.getTime() + Math.random() * jitter * 60_000);
 
   const [post] = await db
     .update(postsTable)
@@ -355,7 +370,6 @@ router.post("/posts/:id/schedule", async (req, res): Promise<void> => {
     return;
   }
 
-  // Queue the publish job
   await db.insert(queueJobsTable).values({
     type: "post_publish",
     payload: { postId: post.id },
@@ -374,48 +388,34 @@ router.post("/posts/:id/schedule", async (req, res): Promise<void> => {
   res.json({ ...post, account: account ?? null });
 });
 
-// POST /posts/bulk-delete — remove multiple posts at once
-router.post("/posts/bulk-delete", async (req, res): Promise<void> => {
-  const { ids } = req.body as { ids?: unknown };
-  if (!Array.isArray(ids) || ids.length === 0) {
-    res.status(400).json({ error: "ids must be a non-empty array of integers" });
-    return;
-  }
-  const validIds = ids.filter((id): id is number => Number.isInteger(id));
-  if (validIds.length === 0) {
-    res.status(400).json({ error: "No valid integer ids provided" });
-    return;
-  }
-
-  // Delete in bulk
-  let deleted = 0;
-  for (const id of validIds) {
-    const result = await db.delete(postsTable).where(eq(postsTable.id, id)).returning();
-    deleted += result.length;
-  }
-
-  req.log.info({ deleted, ids: validIds }, "Bulk post delete");
-  res.json({ deleted });
-});
-
-// POST /posts/:id/duplicate — clone as draft for a fresh edit
-router.post("/:id/duplicate", async (req, res): Promise<void> => {
+// POST /posts/:id/duplicate
+router.post("/posts/:id/duplicate", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
   const [orig] = await db.select().from(postsTable).where(eq(postsTable.id, id));
-  if (!orig) { res.status(404).json({ error: "Post not found" }); return; }
+  if (!orig) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
 
-  const [duped] = await db.insert(postsTable).values({
-    accountId: orig.accountId,
-    content: orig.content,
-    mediaUrls: orig.mediaUrls,
-    status: "draft",
-    subreddit: orig.subreddit,
-    postTitle: orig.postTitle ? `${orig.postTitle} (copy)` : null,
-    aiGenerated: orig.aiGenerated,
-  }).returning();
+  const [duped] = await db
+    .insert(postsTable)
+    .values({
+      accountId: orig.accountId,
+      content: orig.content,
+      mediaUrls: orig.mediaUrls,
+      status: "draft",
+      subreddit: orig.subreddit,
+      postTitle: orig.postTitle ? `${orig.postTitle} (copy)` : null,
+      aiGenerated: orig.aiGenerated,
+    })
+    .returning();
 
+  req.log.info({ originalId: id, newId: duped.id }, "Post duplicated");
   res.status(201).json(duped);
 });
 

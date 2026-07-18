@@ -6,7 +6,7 @@ import {
   SidebarGroupLabel, SidebarGroupContent, SidebarTrigger
 } from "@/components/ui/sidebar";
 import { 
-  LayoutDashboard, Users, PenSquare, Calendar as CalendarIcon, 
+  LayoutDashboard, Users, PenSquare, Calendar as CalendarIcon, FileText,
   BarChart3, ListTree, Activity, Settings, Plus, Moon, Sun, Bell, Search, SlidersHorizontal
 } from "lucide-react";
 import { useListAccounts, useGetAccountsOverview, useListPosts } from "@workspace/api-client-react";
@@ -59,6 +59,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   {[
                     { href: "/", label: "Dashboard", icon: LayoutDashboard },
                     { href: "/compose", label: "Compose", icon: PenSquare },
+                    { href: "/posts", label: "Posts", icon: FileText },
                     { href: "/calendar", label: "Calendar", icon: CalendarIcon },
                     { href: "/analytics", label: "Analytics", icon: BarChart3 },
                   ].map(item => (
@@ -190,6 +191,9 @@ export function Shell({ children }: { children: ReactNode }) {
                 </CommandItem>
                 <CommandItem onSelect={() => { setLocation('/compose'); setCmdOpen(false); }}>
                   <PenSquare className="mr-2 h-4 w-4" /> Compose
+                </CommandItem>
+                <CommandItem onSelect={() => { setLocation('/posts'); setCmdOpen(false); }}>
+                  <FileText className="mr-2 h-4 w-4" /> Posts
                 </CommandItem>
                 <CommandItem onSelect={() => { setLocation('/calendar'); setCmdOpen(false); }}>
                   <CalendarIcon className="mr-2 h-4 w-4" /> Calendar

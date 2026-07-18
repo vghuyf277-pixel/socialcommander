@@ -10,6 +10,7 @@ import Dashboard from '@/pages/Dashboard';
 import Accounts from '@/pages/Accounts';
 import AccountDetail from '@/pages/AccountDetail';
 import Compose from '@/pages/Compose';
+import Posts from '@/pages/Posts';
 import Calendar from '@/pages/Calendar';
 import Analytics from '@/pages/Analytics';
 import Queue from '@/pages/Queue';
@@ -27,6 +28,7 @@ function Router() {
         <Route path="/accounts" component={Accounts} />
         <Route path="/accounts/:id" component={AccountDetail} />
         <Route path="/compose" component={Compose} />
+        <Route path="/posts" component={Posts} />
         <Route path="/calendar" component={Calendar} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/queue" component={Queue} />

@@ -5,7 +5,7 @@ import { ListAuditLogsQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-// GET /audit
+// GET /audit — filtered and paginated at the DB level
 router.get("/audit", async (req, res): Promise<void> => {
   const query = ListAuditLogsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -15,26 +15,41 @@ router.get("/audit", async (req, res): Promise<void> => {
 
   const { accountId, action, limit = 50, offset = 0 } = query.data;
 
-  let logs = await db
+  const conditions: ReturnType<typeof sql>[] = [];
+  if (accountId) conditions.push(sql`${auditLogsTable.accountId} = ${accountId}`);
+  if (action) conditions.push(sql`${auditLogsTable.action} ILIKE ${"%" + action + "%"}`);
+
+  const where = conditions.length > 0
+    ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+    : sql``;
+
+  const [countRow] = await db.execute<{ count: string }>(
+    sql`SELECT COUNT(*)::text as count FROM audit_logs ${where}`
+  );
+  const total = Number(countRow?.count ?? 0);
+
+  const logs = await db
     .select()
     .from(auditLogsTable)
-    .orderBy(sql`${auditLogsTable.createdAt} DESC`);
+    .where(conditions.length > 0 ? sql.join(conditions, sql` AND `) : undefined)
+    .orderBy(sql`${auditLogsTable.createdAt} DESC`)
+    .limit(limit)
+    .offset(offset);
 
-  if (accountId) logs = logs.filter((l) => l.accountId === accountId);
-  if (action) logs = logs.filter((l) => l.action.includes(action));
-
-  const total = logs.length;
-  const page = logs.slice(offset, offset + limit);
-
-  res.json(page.map((l) => ({
-    id: l.id,
-    accountId: l.accountId ?? null,
-    postId: l.postId ?? null,
-    action: l.action,
-    details: l.details ?? null,
-    ipAddress: l.ipAddress ?? null,
-    createdAt: l.createdAt.toISOString(),
-  })));
+  res.json({
+    logs: logs.map((l) => ({
+      id: l.id,
+      accountId: l.accountId ?? null,
+      postId: l.postId ?? null,
+      action: l.action,
+      details: l.details ?? null,
+      ipAddress: l.ipAddress ?? null,
+      createdAt: l.createdAt.toISOString(),
+    })),
+    total,
+    limit,
+    offset,
+  });
 });
 
 export default router;
