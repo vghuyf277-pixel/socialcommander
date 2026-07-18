@@ -1,22 +1,71 @@
 #!/bin/bash
-# SocialCommander: auto-push to GitHub after every checkpoint (git commit)
+# SocialCommander: auto-push to GitHub after every checkpoint (git commit).
 # Runs in background — never blocks the commit.
+#
+# Security: GITHUB_TOKEN is delivered via git's http.extraheader, never
+# embedded in a remote URL or printed to any log.
+#
+# Reliability: retries up to 3 times with fetch+rebase reconciliation;
+# only logs success when the push actually returns exit code 0.
+
 TOKEN="${GITHUB_TOKEN:-}"
 REPO="${GITHUB_REPO:-}"
 BRANCH="${GITHUB_BRANCH:-main}"
 LOG="/tmp/github-autopush.log"
+
+# Exit silently when required vars are absent — no error spam
 [ -z "$TOKEN" ] || [ -z "$REPO" ] && exit 0
+
 (
-  REMOTE_URL="https://${TOKEN}@github.com/${REPO}.git"
+  TS="[$(date -u +%Y-%m-%dT%H:%M:%SZ)]"
+
+  # Ensure remote URL is clean — token is NOT embedded here
+  CLEAN_URL="https://github.com/${REPO}.git"
   if git remote get-url origin >/dev/null 2>&1; then
-    git remote set-url origin "$REMOTE_URL" >/dev/null 2>&1
+    git remote set-url origin "$CLEAN_URL" >/dev/null 2>&1
   else
-    git remote add origin "$REMOTE_URL" >/dev/null 2>&1
+    git remote add origin "$CLEAN_URL" >/dev/null 2>&1
   fi
-  git push origin "$BRANCH" >/dev/null 2>&1 \
-    && echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✓ Pushed to github.com/${REPO} (${BRANCH})" >> "$LOG" \
-    || { git push --set-upstream origin "$BRANCH" >/dev/null 2>&1 \
-    && echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✓ First push set-upstream github.com/${REPO}" >> "$LOG" \
-    || echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ✗ Push failed — check GITHUB_TOKEN/GITHUB_REPO secrets" >> "$LOG"; }
+
+  # Helper: run git push with the auth header injected inline via -c.
+  # The -c flag is transient (not stored in any config file) and the whole
+  # command's output is redirected to /dev/null, so the token is never logged.
+  git_push() {
+    git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TOKEN}" \
+      push origin "${BRANCH}" >/dev/null 2>&1
+  }
+
+  git_fetch() {
+    git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TOKEN}" \
+      fetch origin "${BRANCH}" >/dev/null 2>&1
+  }
+
+  MAX_RETRIES=3
+  attempt=0
+  pushed=false
+
+  while [ "$attempt" -lt "$MAX_RETRIES" ]; do
+    attempt=$((attempt + 1))
+
+    if git_push; then
+      echo "${TS} ✓ Pushed to github.com/${REPO} (${BRANCH}) [attempt ${attempt}]" >> "$LOG"
+      pushed=true
+      break
+    fi
+
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+      # Reconcile diverged history before retrying
+      git_fetch
+      # Try rebase; if it conflicts, abort (leave state clean for next attempt)
+      git rebase "origin/${BRANCH}" >/dev/null 2>&1 || \
+        git rebase --abort >/dev/null 2>&1
+      sleep $((attempt * 2))
+    fi
+  done
+
+  if [ "$pushed" = false ]; then
+    echo "${TS} ✗ Push failed after ${MAX_RETRIES} attempts — check GITHUB_TOKEN/GITHUB_REPO" >> "$LOG"
+  fi
 ) &
+
 exit 0
